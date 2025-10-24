@@ -14,6 +14,7 @@ function Header() {
   const navLinks = [
     { path: '/', label: 'Dashboard' },
     { path: '/transactions', label: 'Transactions' },
+    { path: '/installments', label: 'Installments' },
     { path: '/recurring-series', label: 'Recurring Series' },
     { path: '/payment-methods', label: 'Payment Methods' },
     { path: '/categories', label: 'Categories' },

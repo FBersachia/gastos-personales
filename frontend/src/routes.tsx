@@ -9,6 +9,7 @@ import PaymentMethods from '@/pages/PaymentMethods';
 import Categories from '@/pages/Categories';
 import Transactions from '@/pages/Transactions';
 import RecurringSeries from '@/pages/RecurringSeries';
+import Installments from '@/pages/Installments';
 import Layout from '@/components/layout/Layout';
 
 // Protected Route wrapper
@@ -77,6 +78,10 @@ export const router = createBrowserRouter([
       {
         path: 'recurring-series',
         element: <RecurringSeries />,
+      },
+      {
+        path: 'installments',
+        element: <Installments />,
       },
     ],
   },

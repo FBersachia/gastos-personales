@@ -33,13 +33,34 @@
 - Installments support (format n1/n2)
 - Navigation integrated
 
-🚧 **Next Phase: Sprint 3 - Recurring Series**
-- Recurring series CRUD
-- Link transactions to series
-- Series statistics and timeline
+✅ **Sprint 3: Recurring Series - COMPLETED (2025-10-24)**
+- Recurring series CRUD (Backend + Frontend)
+- Link transactions to series (dropdown in transaction form)
+- Series statistics (count, average, total, last payment)
+- Transaction timeline view (all transactions in series)
+- Full CRUD operations with validation
+- Navigation integrated
+
+✅ **Sprint 4: Installments - COMPLETED (2025-10-24)**
+- Pending installments endpoint (Backend)
+- Parse installments format (n1/n2) and calculate pending amounts
+- Installments tracking page (Frontend)
+- Sort by pending count, amount, or date
+- Progress bars and completion percentage
+- Color-coded rows based on completion (green: 80%+, yellow: 50-79%)
+- Total pending amount summary
+- Estimated end date calculation
+- Navigation integrated
+
+🚧 **Next Phase: Sprint 5 - CSV Import**
+- CSV file upload and parsing
+- Payment method detection
+- Category mapping
+- Transaction preview and filtering
 - See `tasklist.md` for detailed task breakdown
 
 ## RULES
+- Update `tasklist.md` everytime you complete a task.
 - Keep this file updated with current project status.
 - When I say "update everything", update these files and push to GitHub remote repository.
 - This file should not exceed 100 lines.

@@ -13,6 +13,8 @@ import { categoryRouter } from './modules/categories/category.routes';
 import { macroCategoryRouter } from './modules/macro-categories/macro-category.routes';
 import { transactionRouter } from './modules/transactions/transaction.routes';
 import { recurringSeriesRouter } from './modules/recurring-series/recurring-series.routes';
+import { installmentRouter } from './modules/installments/installment.routes';
+import importRouter from './modules/import/import.routes';
 
 const app = express();
 
@@ -76,6 +78,8 @@ app.use('/api/v1/categories', categoryRouter);
 app.use('/api/v1/macro-categories', macroCategoryRouter);
 app.use('/api/v1/transactions', transactionRouter);
 app.use('/api/v1/recurring-series', recurringSeriesRouter);
+app.use('/api/v1/installments', installmentRouter);
+app.use('/api/v1/import', importRouter);
 
 // 404 handler
 app.use((req, res) => {
