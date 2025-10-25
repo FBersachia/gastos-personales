@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { InstallmentController } from './installment.controller';
 import { InstallmentService } from './installment.service';
-import prisma from '../../config/database';
+import { prisma } from '../../config/database';
 import { authenticate } from '../../middleware/auth';
 
 const router = Router();

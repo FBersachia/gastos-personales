@@ -37,4 +37,21 @@ router.post('/csv', upload.single('file'), importController.previewCsv);
  */
 router.post('/csv/confirm', importController.confirmCsvImport);
 
+/**
+ * POST /import/test
+ * Test endpoint to verify large payloads work
+ */
+router.post('/test', (req, res) => {
+  console.log('[IMPORT TEST] Request received');
+  console.log('[IMPORT TEST] Body size:', JSON.stringify(req.body).length);
+  console.log('[IMPORT TEST] Transactions count:', req.body?.transactions?.length || 0);
+
+  res.json({
+    success: true,
+    message: 'Test endpoint reached successfully',
+    receivedTransactions: req.body?.transactions?.length || 0,
+    bodySize: JSON.stringify(req.body).length
+  });
+});
+
 export default router;

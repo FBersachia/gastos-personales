@@ -127,6 +127,9 @@ export default function PaymentMethods() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -140,6 +143,9 @@ export default function PaymentMethods() {
             <tbody className="bg-white divide-y divide-gray-200">
               {paymentMethods.map((method) => (
                 <tr key={method.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">
+                    {method.id}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {method.name}
                   </td>

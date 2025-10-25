@@ -152,39 +152,53 @@ Currently no tasks in progress.
 
 ---
 
-## 📋 Pending Tasks - Sprint 5: CSV Import
+## 📋 Completed Tasks - Sprint 5: CSV Import (2025-10-24, Enhanced 2025-10-25)
 
 ### CSV Import - Backend
-- [ ] POST /api/v1/import/csv (upload and preview)
-  - [ ] Multer file upload middleware
-  - [ ] CSV parser service (PapaParse)
-  - [ ] Validate CSV format and columns
-  - [ ] Detect payment methods from memorandum
-  - [ ] Detect installments from memorandum
-  - [ ] Apply filters (date range, payment methods)
-  - [ ] Return preview data
-- [ ] POST /api/v1/import/csv/confirm (execute import)
-  - [ ] Create missing categories option
-  - [ ] Bulk insert transactions
-  - [ ] Return import summary (success, failed, warnings)
-- [ ] CSV Parser Service
-  - [ ] Parse CSV with correct encoding (UTF-8 BOM)
-  - [ ] Validate required columns
-  - [ ] Payment method detection patterns
-  - [ ] Installments detection regex
-  - [ ] Category auto-creation
+- [x] POST /api/v1/import/csv (upload and preview)
+  - [x] Multer file upload middleware
+  - [x] CSV parser service (PapaParse)
+  - [x] Validate CSV format and columns
+  - [x] Detect payment methods from memorandum
+  - [x] Detect installments from memorandum
+  - [x] Apply filters (date range, payment methods)
+  - [x] Return preview data
+- [x] POST /api/v1/import/csv/confirm (execute import)
+  - [x] Create missing categories option
+  - [x] Bulk insert transactions
+  - [x] Return import summary (success, failed, warnings)
+- [x] CSV Parser Service
+  - [x] Parse CSV with correct encoding (UTF-8 BOM)
+  - [x] Validate required columns
+  - [x] Payment method detection patterns
+  - [x] Installments detection regex
+  - [x] Category auto-creation
+- [x] **Enhancements (2025-10-25):**
+  - [x] Hardcoded ID mappings for 6 payment methods (Income, Amex Galicia, Amex Santander, Efectivo, Visa Galicia, Visa Santander)
+  - [x] Income auto-detection from keywords (sueldo, salario, ingreso, honorarios, etc.)
+  - [x] 5-level fuzzy matching for payment methods (exact, normalized, partial, all-words, significant-words)
+  - [x] 5-level fuzzy matching for categories
+  - [x] Batch operations optimization (from 2,500+ queries to 3 queries for 619 transactions)
+  - [x] Fixed Prisma schema field mapping (paymentId, seriesId)
+  - [x] Import performance: ~2 seconds for 619 transactions (was timing out)
+  - [x] Detailed logging for debugging (request/response interceptors, import service)
 
 ### CSV Import - Frontend
-- [ ] CSV import page
-  - [ ] File upload area (drag & drop)
-  - [ ] File validation
-  - [ ] Preview all parsed records
-  - [ ] Filter controls (date range, payment methods)
-  - [ ] Show filtered count vs total
-  - [ ] Preview table
-  - [ ] Import confirmation
-  - [ ] Import summary display
-  - [ ] Error handling and warnings
+- [x] CSV import page
+  - [x] File upload area (drag & drop)
+  - [x] File validation
+  - [x] Preview all parsed records
+  - [x] Filter controls (date range, payment methods)
+  - [x] Show filtered count vs total
+  - [x] Preview table
+  - [x] Import confirmation
+  - [x] Import summary display
+  - [x] Error handling and warnings
+- [x] **Enhancements (2025-10-25):**
+  - [x] Visual indicators for matched/unmatched items (green ✓, orange ⚠)
+  - [x] Payment method filter with A-Z/Z-A sorting
+  - [x] Enhanced error logging in API client
+  - [x] Axios request/response interceptors for debugging
 
 ---
 
@@ -331,6 +345,7 @@ Currently no tasks in progress.
 **Last Updated:** 2025-10-24
 
 ## Recent Changes
+- **2025-10-24**: ✅ Sprint 5 completed - CSV Import module fully implemented with drag & drop upload, payment method detection, installments detection, filters, preview table, and import confirmation
 - **2025-10-24**: ✅ Sprint 4 completed - Installments module fully implemented with pending installments tracking, sorting, and visual progress indicators
 - **2025-10-24**: ✅ Sprint 3 completed - Recurring Series module fully implemented (backend + frontend) with statistics and transaction linking
 - **2025-10-24**: ✅ Sprint 2 completed - Transactions module fully implemented with pagination, filters, and summary

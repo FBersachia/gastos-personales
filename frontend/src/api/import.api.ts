@@ -84,6 +84,35 @@ export const previewCsv = async (
 export const confirmImport = async (
   data: ImportConfirmRequest
 ): Promise<ImportSummary> => {
-  const response = await apiClient.post('/import/csv/confirm', data);
-  return response.data.data;
+  console.log('[API] Sending import request with', data.transactions.length, 'transactions');
+  console.log('[API] Request payload size:', JSON.stringify(data).length, 'characters');
+  console.log('[API] Target URL:', apiClient.defaults.baseURL + '/import/csv/confirm');
+  console.log('[API] Request started at:', new Date().toISOString());
+
+  try {
+    const response = await apiClient.post('/import/csv/confirm', data, {
+      timeout: 300000, // 5 minutes timeout for large imports
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = progressEvent.total
+          ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          : 0;
+        console.log(`[API] Upload progress: ${percentCompleted}%`);
+      },
+    });
+
+    console.log('[API] Import response received at:', new Date().toISOString());
+    console.log('[API] Response status:', response.status);
+    console.log('[API] Response data:', response.data);
+    return response.data.data;
+  } catch (error: any) {
+    console.error('[API] Request failed at:', new Date().toISOString());
+    console.error('[API] Error details:', {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+    });
+    throw error;
+  }
 };

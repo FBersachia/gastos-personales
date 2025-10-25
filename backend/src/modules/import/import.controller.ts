@@ -62,24 +62,33 @@ export class ImportController {
    * Confirm and execute CSV import
    */
   confirmCsvImport = async (req: Request, res: Response) => {
+    console.log('[IMPORT CONFIRM] Request received at:', new Date().toISOString());
+    console.log('[IMPORT CONFIRM] User ID:', req.user?.id);
+    console.log('[IMPORT CONFIRM] Body present:', !!req.body);
+    console.log('[IMPORT CONFIRM] Transactions count:', req.body?.transactions?.length || 0);
+
     try {
       const userId = req.user?.id;
 
       if (!userId) {
+        console.error('[IMPORT CONFIRM] No user ID found');
         return res.status(401).json({
           success: false,
           error: 'Unauthorized'
         });
       }
 
+      console.log('[IMPORT CONFIRM] Starting import process...');
       const result = await this.importService.confirmImport(req.body, userId);
+      console.log('[IMPORT CONFIRM] Import completed:', result);
 
       return res.status(200).json({
         success: true,
         data: result
       });
     } catch (error: any) {
-      console.error('CSV import error:', error);
+      console.error('[IMPORT CONFIRM] Error:', error.message);
+      console.error('[IMPORT CONFIRM] Stack:', error.stack);
       return res.status(400).json({
         success: false,
         error: error.message || 'Failed to import CSV'

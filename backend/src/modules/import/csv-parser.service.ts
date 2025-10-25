@@ -16,7 +16,7 @@ export interface ParsedCsvRow {
   category: string;
   description: string;
   amount: number;
-  detectedPaymentMethod: string | null;
+  detectedPaymentMethod: string;
   installments: string | null;
   originalRow: number;
 }
@@ -49,16 +49,23 @@ export class CsvParserService {
               // Validate row schema
               const validatedRow = csvRowSchema.parse(row);
 
+              const csvType = validatedRow['Ingresos/Gastos'].toLowerCase().includes('ingreso')
+                ? 'INCOME' as const
+                : 'EXPENSE' as const;
+
+              // Auto-detect income based on keywords in description
+              const description = validatedRow['Memorándum'].trim();
+              const type = this.detectTransactionType(description, csvType);
+
               return {
                 date: this.parseDate(validatedRow.Fecha),
-                type: validatedRow['Ingresos/Gastos'].toLowerCase().includes('ingreso')
-                  ? 'INCOME' as const
-                  : 'EXPENSE' as const,
+                type,
                 category: validatedRow['Categoría'].trim(),
-                description: validatedRow['Memorándum'].trim(),
+                description,
                 amount: Math.abs(this.parseAmount(validatedRow.Importe)),
                 detectedPaymentMethod: this.detectPaymentMethod(
-                  validatedRow['Memorándum']
+                  validatedRow['Memorándum'],
+                  type
                 ),
                 installments: this.detectInstallments(
                   validatedRow['Memorándum']
@@ -77,6 +84,35 @@ export class CsvParserService {
         }
       });
     });
+  }
+
+  /**
+   * Detect transaction type based on description keywords
+   * Auto-detects income if description contains salary-related keywords
+   */
+  private detectTransactionType(description: string, csvType: 'INCOME' | 'EXPENSE'): 'INCOME' | 'EXPENSE' {
+    const desc = description.toLowerCase();
+
+    // Income keywords - if found, override to INCOME
+    const incomeKeywords = [
+      /\bsueldo\b/i,           // salary
+      /\bsalario\b/i,          // salary
+      /\bingreso\b/i,          // income
+      /\bpago\s+de\s+sueldo\b/i, // salary payment
+      /\bhonorarios\b/i,       // fees
+      /\bpaga\b/i,             // pay
+      /\bremuneracion\b/i,     // remuneration
+      /\bnomina\b/i            // payroll
+    ];
+
+    for (const keyword of incomeKeywords) {
+      if (keyword.test(desc)) {
+        return 'INCOME';
+      }
+    }
+
+    // Otherwise use CSV type
+    return csvType;
   }
 
   /**
@@ -144,15 +180,44 @@ export class CsvParserService {
    * Detect payment method from description/memorandum
    * Looks for common patterns like card names, bank names, etc.
    */
-  detectPaymentMethod(description: string): string | null {
+  detectPaymentMethod(description: string, type: 'INCOME' | 'EXPENSE'): string {
+    // Rule 1: If it's an income, always return "ingreso"
+    if (type === 'INCOME') {
+      return 'ingreso';
+    }
+
     const desc = description.toLowerCase();
 
-    // Payment method patterns (customize based on your needs)
+    // Specific combination patterns - check these first for exact matches
+    const specificPatterns: Record<string, RegExp> = {
+      'Visa Santander': /visa\s+s(?:\s|$)/i,
+      'Visa Galicia': /visa\s+g(?:\s|$)/i,
+      'Amex Galicia': /amex\s+g(?:\s|$)/i,
+      'Amex Santander': /amex\s+s(?:\s|$)/i,
+      'Mastercard Carrefour': /master\s+c(?:\s|$)/i
+    };
+
+    // Check specific patterns first
+    for (const [paymentMethod, regex] of Object.entries(specificPatterns)) {
+      if (regex.test(desc)) {
+        return paymentMethod;
+      }
+    }
+
+    // Check for card keywords BEFORE other patterns (to avoid "Efectivo Carla amex" matching "Efectivo")
+    // Rule 2: If "visa" is found anywhere → default to "Visa Galicia"
+    if (/visa/i.test(desc)) {
+      return 'Visa Galicia';
+    }
+
+    // Rule 3: If "amex" is found anywhere → default to "Amex Galicia"
+    if (/amex/i.test(desc) || /american express/i.test(desc)) {
+      return 'Amex Galicia';
+    }
+
+    // Generic payment method patterns (check after card patterns)
     const patterns: Record<string, RegExp[]> = {
-      'Visa': [/visa/i, /tarjeta visa/i],
       'Mastercard': [/mastercard/i, /master/i],
-      'American Express': [/amex/i, /american express/i],
-      'Efectivo': [/efectivo/i, /cash/i],
       'Transferencia': [/transferencia/i, /transfer/i],
       'Débito': [/debito/i, /debit/i],
       'Santander': [/santander/i],
@@ -160,7 +225,8 @@ export class CsvParserService {
       'BBVA': [/bbva/i],
       'Mercado Pago': [/mercado\s*pago/i, /mp/i],
       'Brubank': [/brubank/i],
-      'Ualá': [/uala/i, /ualá/i]
+      'Ualá': [/uala/i, /ualá/i],
+      'Efectivo': [/efectivo/i, /cash/i]
     };
 
     for (const [paymentMethod, regexps] of Object.entries(patterns)) {
@@ -171,7 +237,8 @@ export class CsvParserService {
       }
     }
 
-    return null;
+    // Rule 4: Default to "Efectivo" if no patterns match
+    return 'Efectivo';
   }
 
   /**
@@ -213,9 +280,11 @@ export class CsvParserService {
     }
 
     if (filters.paymentMethods && filters.paymentMethods.length > 0) {
+      // Convert filter values to lowercase for case-insensitive comparison
+      const lowerCaseFilters = filters.paymentMethods.map(pm => pm.toLowerCase());
       filtered = filtered.filter(row =>
         row.detectedPaymentMethod &&
-        filters.paymentMethods!.includes(row.detectedPaymentMethod)
+        lowerCaseFilters.includes(row.detectedPaymentMethod.toLowerCase())
       );
     }
 
@@ -228,9 +297,10 @@ export class CsvParserService {
   generateWarnings(rows: ParsedCsvRow[]): string[] {
     const warnings: string[] = [];
 
-    const withoutPaymentMethod = rows.filter(r => !r.detectedPaymentMethod).length;
-    if (withoutPaymentMethod > 0) {
-      warnings.push(`${withoutPaymentMethod} records without detected payment method`);
+    // Count payment methods that defaulted to "Efectivo" (might need manual review)
+    const defaultedToEfectivo = rows.filter(r => r.detectedPaymentMethod === 'Efectivo').length;
+    if (defaultedToEfectivo > 0) {
+      warnings.push(`${defaultedToEfectivo} records defaulted to 'Efectivo' - please review`);
     }
 
     const withoutCategory = rows.filter(r => !r.category || r.category === '').length;
