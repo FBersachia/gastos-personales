@@ -11,6 +11,7 @@ import Transactions from '@/pages/Transactions';
 import RecurringSeries from '@/pages/RecurringSeries';
 import Installments from '@/pages/Installments';
 import CsvImport from '@/pages/CsvImport';
+import PdfImport from '@/pages/PdfImport';
 import Layout from '@/components/layout/Layout';
 
 // Protected Route wrapper
@@ -87,6 +88,10 @@ export const router = createBrowserRouter([
       {
         path: 'import',
         element: <CsvImport />,
+      },
+      {
+        path: 'import/pdf',
+        element: <PdfImport />,
       },
     ],
   },

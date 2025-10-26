@@ -15,6 +15,7 @@ import { transactionRouter } from './modules/transactions/transaction.routes';
 import { recurringSeriesRouter } from './modules/recurring-series/recurring-series.routes';
 import { installmentRouter } from './modules/installments/installment.routes';
 import importRouter from './modules/import/import.routes';
+import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 
 const app = express();
 
@@ -80,6 +81,7 @@ app.use('/api/v1/transactions', transactionRouter);
 app.use('/api/v1/recurring-series', recurringSeriesRouter);
 app.use('/api/v1/installments', installmentRouter);
 app.use('/api/v1/import', importRouter);
+app.use('/api/v1/dashboard', dashboardRouter);
 
 // 404 handler
 app.use((req, res) => {

@@ -1,4 +1,5 @@
 import { CsvParserService, ParsedCsvRow, CsvFilters } from './csv-parser.service';
+import { PdfParserService } from './pdf-parser.service';
 import { prisma } from '../../config/database';
 import { TransactionType } from '@prisma/client';
 
@@ -20,6 +21,18 @@ export interface ImportConfirmRequest {
   createMissingCategories?: boolean;
 }
 
+export interface PdfImportConfirmRequest {
+  bank: string;
+  paymentMethodId: string;
+  transactions: Array<{
+    date: string;
+    description: string;
+    amount: number;
+    categoryId?: string;
+    installments?: string;
+  }>;
+}
+
 export interface ImportSummary {
   imported: number;
   failed: number;
@@ -29,6 +42,7 @@ export interface ImportSummary {
 
 export class ImportService {
   private csvParser: CsvParserService;
+  private pdfParser: PdfParserService;
 
   // Hardcoded payment method ID mappings (keys are lowercase for case-insensitive lookup)
   private readonly PAYMENT_METHOD_IDS: Record<string, string> = {
@@ -42,6 +56,201 @@ export class ImportService {
 
   constructor() {
     this.csvParser = new CsvParserService();
+    this.pdfParser = new PdfParserService();
+  }
+
+  /**
+   * Preview PDF import
+   */
+  async previewPdf(fileBuffer: Buffer, userId?: string) {
+    const result = await this.pdfParser.parse(fileBuffer);
+
+    // Get user's payment methods and categories for mapping
+    const paymentMethods = userId
+      ? await prisma.paymentMethod.findMany({ where: { userId } })
+      : [];
+
+    const categories = userId
+      ? await prisma.category.findMany({
+          where: { userId },
+          include: { macroCategory: true }
+        })
+      : [];
+
+    // Map parsed transactions to preview format
+    const preview = result.transactions.map(txn => ({
+      date: txn.date.toISOString(),
+      description: txn.description,
+      amount: txn.amount,
+      installments: txn.installments,
+      originalLine: txn.originalLine,
+      // Try to auto-detect category based on description
+      suggestedCategoryId: this.findCategoryByDescription(txn.description, categories)
+    }));
+
+    return {
+      bank: result.bank,
+      preview,
+      summary: {
+        totalRecords: result.totalRecords,
+        willImport: result.totalRecords
+      },
+      warnings: result.warnings,
+      availablePaymentMethods: paymentMethods.map(pm => ({
+        id: pm.id,
+        name: pm.name
+      })),
+      availableCategories: categories.map(c => ({
+        id: c.id,
+        name: c.name,
+        macroCategory: c.macroCategory?.name || null
+      }))
+    };
+  }
+
+  /**
+   * Confirm and execute PDF import
+   */
+  async confirmPdfImport(
+    data: PdfImportConfirmRequest,
+    userId: string
+  ): Promise<ImportSummary> {
+    console.log('[PDF Import Service] Starting import for', data.transactions.length, 'transactions');
+
+    const summary: ImportSummary = {
+      imported: 0,
+      failed: 0,
+      newCategoriesCreated: 0,
+      errors: []
+    };
+
+    // Validate payment method belongs to user
+    const paymentMethod = await prisma.paymentMethod.findFirst({
+      where: {
+        id: data.paymentMethodId,
+        userId
+      }
+    });
+
+    if (!paymentMethod) {
+      throw new Error('Invalid payment method');
+    }
+
+    // Get all valid category IDs
+    const categoryIds = data.transactions
+      .map(t => t.categoryId)
+      .filter((id): id is string => !!id);
+
+    const validCategories = await prisma.category.findMany({
+      where: { id: { in: categoryIds } }
+    });
+    const validCategoryIds = new Set(validCategories.map(c => c.id));
+
+    console.log('[PDF Import Service] Found', validCategoryIds.size, 'valid categories');
+
+    // Prepare transactions for batch insert
+    const validTransactions = [];
+    const installmentsRegex = /^\d+\/\d+$/;
+
+    for (let i = 0; i < data.transactions.length; i++) {
+      const txn = data.transactions[i];
+
+      try {
+        // Skip if no category
+        if (!txn.categoryId) {
+          throw new Error('Category is required');
+        }
+
+        // Validate category
+        if (!validCategoryIds.has(txn.categoryId)) {
+          throw new Error('Invalid category');
+        }
+
+        // Validate installments format if provided
+        if (txn.installments && !installmentsRegex.test(txn.installments)) {
+          throw new Error('Invalid installments format. Expected: n1/n2');
+        }
+
+        // All PDF transactions are expenses by default (bank statements)
+        validTransactions.push({
+          date: new Date(txn.date),
+          type: 'EXPENSE' as TransactionType,
+          description: txn.description,
+          amount: txn.amount,
+          categoryId: txn.categoryId,
+          paymentId: data.paymentMethodId,
+          installments: txn.installments || null,
+          seriesId: null,
+          userId
+        });
+      } catch (error: any) {
+        summary.failed++;
+        summary.errors.push({
+          row: i + 1,
+          message: error.message
+        });
+      }
+    }
+
+    console.log('[PDF Import Service] Validated', validTransactions.length, 'transactions, inserting into database...');
+
+    // Batch insert all valid transactions
+    if (validTransactions.length > 0) {
+      try {
+        const result = await prisma.transaction.createMany({
+          data: validTransactions,
+          skipDuplicates: false
+        });
+        summary.imported = result.count;
+        console.log('[PDF Import Service] Successfully inserted', result.count, 'transactions');
+      } catch (error: any) {
+        console.error('[PDF Import Service] Batch insert failed:', error.message);
+        // If batch insert fails, fall back to individual inserts
+        console.log('[PDF Import Service] Falling back to individual inserts...');
+        for (let i = 0; i < validTransactions.length; i++) {
+          try {
+            await prisma.transaction.create({
+              data: validTransactions[i]
+            });
+            summary.imported++;
+          } catch (individualError: any) {
+            summary.failed++;
+            summary.errors.push({
+              row: i + 1,
+              message: individualError.message
+            });
+          }
+        }
+      }
+    }
+
+    console.log('[PDF Import Service] Import completed:', summary);
+    return summary;
+  }
+
+  /**
+   * Try to find category based on description keywords
+   */
+  private findCategoryByDescription(
+    description: string,
+    categories: Array<{ id: string; name: string }>
+  ): string | null {
+    if (!description || !categories || categories.length === 0) {
+      return null;
+    }
+
+    const descLower = description.toLowerCase();
+
+    // Try to find category by matching keywords
+    for (const category of categories) {
+      const categoryLower = category.name.toLowerCase();
+      if (descLower.includes(categoryLower) || categoryLower.includes(descLower)) {
+        console.log(`[PDF Import] Category auto-match: "${description}" -> "${category.name}"`);
+        return category.id;
+      }
+    }
+
+    return null;
   }
 
   /**

@@ -283,4 +283,81 @@ const result = await prisma.transaction.createMany({
 
 ---
 
-**Last Updated:** 2025-10-25
+## Dashboard Errors
+
+### Error: `500 Internal Server Error` on `/api/v1/dashboard/summary`
+
+**Description:** Dashboard page shows "Error al cargar el resumen" and browser console shows 500 error. Backend logs show `PrismaClientValidationError` at line 78 in `dashboard.service.ts`.
+
+**Root Cause:**
+- Invalid Prisma query syntax for filtering null values in `categoryId` field
+- Attempted syntax `categoryId: { not: null }` is not valid in Prisma
+- Also tried `NOT: { categoryId: null }` which is also invalid syntax
+
+**Error Message:**
+```
+PrismaClientValidationError:
+D:\...\backend\src\modules\dashboard\dashboard.service.ts:78:60
+```
+
+**Symptoms:**
+- Dashboard loads but shows error state
+- Browser console: `Failed to load resource: the server responded with a status of 500`
+- Backend logs: Empty error message (just the location)
+- Frontend shows: "Error al cargar el resumen"
+
+**Solution:**
+Remove the null filter from Prisma query and filter in JavaScript instead:
+
+**Before (causes error):**
+```typescript
+const topCategoriesRaw = await this.prisma.transaction.findMany({
+  where: {
+    ...currentMonthWhere,
+    type: 'EXPENSE',
+    categoryId: { not: null }, // ❌ Invalid Prisma syntax
+  },
+  select: { categoryId: true, amount: true },
+});
+```
+
+**After (working):**
+```typescript
+// Fetch all expense transactions (no null filter in query)
+const topCategoriesRaw = await this.prisma.transaction.findMany({
+  where: {
+    userId,
+    date: { gte: currentMonthStart, lte: currentMonthEnd },
+    type: 'EXPENSE',
+  },
+  select: { categoryId: true, amount: true },
+});
+
+// Filter out nulls in JavaScript
+const topCategoriesFiltered = topCategoriesRaw.filter(t => t.categoryId !== null);
+```
+
+**Why This Works:**
+- Prisma's null filtering syntax is inconsistent across different field types
+- JavaScript `.filter()` is simpler, more reliable, and easier to debug
+- Performance impact is negligible (filtering happens in-memory after fetch)
+- Works with all Prisma versions and field types
+
+**Files Changed:**
+- `backend/src/modules/dashboard/dashboard.service.ts:76-107` - Fixed top categories query
+
+**How to Prevent:**
+- Use JavaScript filtering for complex null checks instead of Prisma `NOT` operator
+- Test Prisma queries with actual data before deployment
+- Check Prisma documentation for correct null filtering syntax (varies by version)
+- Add comprehensive error logging to identify validation errors quickly
+
+**Related Issues:**
+- Prisma Decimal field aggregation (solved by manual aggregation)
+- Prisma `groupBy` limitations on Decimal fields
+
+**Fixed:** 2025-10-26
+
+---
+
+**Last Updated:** 2025-10-26

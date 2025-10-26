@@ -15,6 +15,7 @@ function Header() {
     { path: '/', label: 'Dashboard' },
     { path: '/transactions', label: 'Transactions' },
     { path: '/import', label: 'CSV Import' },
+    { path: '/import/pdf', label: 'PDF Import' },
     { path: '/installments', label: 'Installments' },
     { path: '/recurring-series', label: 'Recurring Series' },
     { path: '/payment-methods', label: 'Payment Methods' },

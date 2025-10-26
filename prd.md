@@ -70,10 +70,33 @@
 - Error handling and detailed logging
 - Navigation link integrated
 
-🚧 **Next Phase: Sprint 6 - PDF Import**
-- PDF file upload and parsing
-- Bank detection (Santander, Galicia, Amex)
-- Transaction extraction from PDFs
+✅ **Sprint 6: PDF Import - COMPLETED (2025-10-25)**
+- PDF file upload with drag & drop (Frontend)
+- PDF parser service with pdf-parse (Backend)
+- **Bank detection:** Santander, Galicia, Amex
+- **PDF parsers per bank:**
+  - Santander: Date/description/amount extraction
+  - Galicia: Date/description/amount extraction
+  - Amex: Date/description/amount extraction with DD/MM format support
+- Transaction extraction from PDF statements
+- Installments detection from descriptions
+- Payment method selection (applies to all transactions)
+- Category mapping interface with auto-suggestions
+- Preview table with editable categories
+- Import confirmation and summary
+- Navigation link integrated
+
+✅ **Sprint 7: Dashboard & Analytics - COMPLETED (2025-10-25)**
+- Dashboard summary endpoint with current & previous month data (Backend)
+- Summary cards: income, expenses, balance with % changes (Frontend)
+- Top spending categories widget with progress bars (Frontend)
+- Recent transactions widget (Frontend)
+- Pending installments summary widget (Frontend)
+- Quick action buttons: New Transaction, Import CSV, Import PDF (Frontend)
+- Monthly comparison (percentage changes vs previous month)
+
+🚧 **Next Phase: Sprint 8 - UI/UX Improvements**
+- Loading states, error boundaries, toast notifications
 - See `tasklist.md` for detailed task breakdown
 
 ## RULES

@@ -202,61 +202,66 @@ Currently no tasks in progress.
 
 ---
 
-## 📋 Pending Tasks - Sprint 6: PDF Import
+## 📋 Completed Tasks - Sprint 6: PDF Import (2025-10-25)
 
 ### PDF Import - Backend
-- [ ] POST /api/v1/import/pdf (upload and preview)
-  - [ ] Multer file upload middleware
-  - [ ] PDF parser service (pdf-parse)
-  - [ ] Bank detection logic
-  - [ ] PDF parsers per bank (Santander, Galicia, Amex)
-  - [ ] Extract transactions from PDF text
-  - [ ] Detect installments in descriptions
-  - [ ] Return preview data
-- [ ] POST /api/v1/import/pdf/confirm (execute import)
-  - [ ] Category mapping
-  - [ ] Associate payment method
-  - [ ] Bulk insert transactions
-  - [ ] Return import summary
-- [ ] PDF Parser Service
-  - [ ] Bank detection patterns
-  - [ ] Santander PDF parser
-  - [ ] Date extraction and parsing
-  - [ ] Amount parsing
-  - [ ] Installments detection
+- [x] POST /api/v1/import/pdf (upload and preview)
+  - [x] Multer file upload middleware (20MB limit for PDFs)
+  - [x] PDF parser service (pdf-parse)
+  - [x] Bank detection logic (Santander, Galicia, Amex)
+  - [x] PDF parsers per bank (Santander, Galicia, Amex)
+  - [x] Extract transactions from PDF text
+  - [x] Detect installments in descriptions (n1/n2 format)
+  - [x] Return preview data with suggestions
+- [x] POST /api/v1/import/pdf/confirm (execute import)
+  - [x] Category mapping validation
+  - [x] Associate payment method to all transactions
+  - [x] Bulk insert transactions with batch operations
+  - [x] Return import summary (imported, failed, errors)
+- [x] PDF Parser Service
+  - [x] Bank detection patterns (text matching)
+  - [x] Santander PDF parser (DD/MM/YYYY format)
+  - [x] Galicia PDF parser (DD/MM/YYYY format)
+  - [x] Amex PDF parser (DD/MM and DD/MM/YY formats)
+  - [x] Date extraction and parsing (multiple formats)
+  - [x] Amount parsing (Argentine format: 1.500,00)
+  - [x] Installments detection (multiple patterns)
 
 ### PDF Import - Frontend
-- [ ] PDF import page
-  - [ ] File upload area
-  - [ ] Bank detection display
-  - [ ] Preview extracted transactions
-  - [ ] Payment method selection
-  - [ ] Category mapping interface
-  - [ ] Edit transactions before import
-  - [ ] Import confirmation
-  - [ ] Import summary display
+- [x] PDF import page (/import/pdf)
+  - [x] File upload area with drag & drop
+  - [x] Bank detection display (shown after parsing)
+  - [x] Preview extracted transactions in table
+  - [x] Payment method selection (dropdown, applies to all)
+  - [x] Category mapping interface (dropdown per transaction)
+  - [x] Auto-suggestions for categories
+  - [x] Visual indicators (green=mapped, red=unmapped)
+  - [x] Import confirmation button
+  - [x] Import summary display (success/failed counts)
+  - [x] Navigation link in header
 
 ---
 
-## 📋 Pending Tasks - Sprint 7: Dashboard & Analytics
+## ✅ Completed Tasks - Sprint 7: Dashboard & Analytics (2025-10-25)
 
 ### Dashboard - Backend
-- [ ] GET /api/v1/dashboard/summary
-  - [ ] Total income (current month)
-  - [ ] Total expenses (current month)
-  - [ ] Balance
-  - [ ] Top categories by spending
-  - [ ] Recent transactions
-  - [ ] Pending installments summary
+- [x] GET /api/v1/dashboard/summary
+  - [x] Total income (current month)
+  - [x] Total expenses (current month)
+  - [x] Balance
+  - [x] Top categories by spending
+  - [x] Recent transactions
+  - [x] Pending installments summary
+  - [x] Previous month comparison data
 
 ### Dashboard - Frontend
-- [ ] Enhance dashboard page
-  - [ ] Summary cards (income, expenses, balance)
-  - [ ] Top spending categories
-  - [ ] Recent transactions list
-  - [ ] Quick actions (add transaction, import)
-  - [ ] Pending installments widget
-  - [ ] Monthly comparison
+- [x] Enhance dashboard page
+  - [x] Summary cards (income, expenses, balance)
+  - [x] Top spending categories widget
+  - [x] Recent transactions list widget
+  - [x] Quick actions buttons (add transaction, import CSV, import PDF)
+  - [x] Pending installments widget
+  - [x] Monthly comparison (percentage changes vs previous month)
 
 ---
 
@@ -342,9 +347,10 @@ Currently no tasks in progress.
 
 ---
 
-**Last Updated:** 2025-10-24
+**Last Updated:** 2025-10-25
 
 ## Recent Changes
+- **2025-10-25**: ✅ Sprint 6 completed - PDF Import module fully implemented with pdf-parse, bank detection (Santander/Galicia/Amex), transaction extraction, payment method selection, category mapping, and import confirmation
 - **2025-10-24**: ✅ Sprint 5 completed - CSV Import module fully implemented with drag & drop upload, payment method detection, installments detection, filters, preview table, and import confirmation
 - **2025-10-24**: ✅ Sprint 4 completed - Installments module fully implemented with pending installments tracking, sorting, and visual progress indicators
 - **2025-10-24**: ✅ Sprint 3 completed - Recurring Series module fully implemented (backend + frontend) with statistics and transaction linking

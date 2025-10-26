@@ -55,6 +55,81 @@ export interface ImportSummary {
   errors: Array<{ row: number; message: string }>;
 }
 
+export interface PdfTransaction {
+  date: string;
+  description: string;
+  amount: number;
+  installments: string | null;
+  originalLine: number;
+  suggestedCategoryId: string | null;
+}
+
+export interface PdfPreviewResponse {
+  bank: string;
+  preview: PdfTransaction[];
+  summary: {
+    totalRecords: number;
+    willImport: number;
+  };
+  warnings: string[];
+  availablePaymentMethods: Array<{ id: string; name: string }>;
+  availableCategories: Array<{ id: string; name: string; macroCategory: string | null }>;
+}
+
+export interface PdfImportTransaction {
+  date: string;
+  description: string;
+  amount: number;
+  categoryId: string;
+  installments?: string;
+}
+
+export interface PdfImportConfirmRequest {
+  bank: string;
+  paymentMethodId: string;
+  transactions: PdfImportTransaction[];
+}
+
+/**
+ * Upload and preview PDF file
+ */
+export const previewPdf = async (file: File): Promise<PdfPreviewResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiClient.post('/import/pdf', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return response.data.data;
+};
+
+/**
+ * Confirm and execute PDF import
+ */
+export const confirmPdfImport = async (
+  data: PdfImportConfirmRequest
+): Promise<ImportSummary> => {
+  console.log('[PDF API] Sending import request with', data.transactions.length, 'transactions');
+  console.log('[PDF API] Bank:', data.bank);
+  console.log('[PDF API] Payment Method ID:', data.paymentMethodId);
+
+  try {
+    const response = await apiClient.post('/import/pdf/confirm', data, {
+      timeout: 300000, // 5 minutes timeout for large imports
+    });
+
+    console.log('[PDF API] Import response received');
+    console.log('[PDF API] Response data:', response.data);
+    return response.data.data;
+  } catch (error: any) {
+    console.error('[PDF API] Request failed:', error);
+    throw error;
+  }
+};
+
 /**
  * Upload and preview CSV file
  */
