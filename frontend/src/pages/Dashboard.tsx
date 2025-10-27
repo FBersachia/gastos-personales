@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { getDashboardSummary, DashboardSummary } from '@/api/dashboard.api';
 import { useNavigate } from 'react-router-dom';
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
 function Dashboard() {
   const user = useAuthStore((state) => state.user);
@@ -48,14 +49,7 @@ function Dashboard() {
   };
 
   if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
-        <div className="flex justify-center items-center h-64">
-          <div className="text-gray-500">Cargando...</div>
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton type="dashboard" />;
   }
 
   if (error) {

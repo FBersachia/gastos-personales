@@ -6,6 +6,7 @@ import {
   deletePaymentMethod
 } from '@/api/paymentMethods.api';
 import { PaymentMethod } from '@/types';
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
 export default function PaymentMethods() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -86,11 +87,7 @@ export default function PaymentMethods() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
+    return <LoadingSkeleton type="table" rows={5} />;
   }
 
   return (

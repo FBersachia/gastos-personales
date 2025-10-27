@@ -6,7 +6,7 @@ export class TransactionService {
   constructor(private prisma: PrismaClient) {}
 
   async findAll(userId: string, query: GetTransactionsQuery) {
-    const { page, limit, dateFrom, dateTo, categoryIds, paymentMethodIds, type, seriesId } = query;
+    const { page, limit, dateFrom, dateTo, categoryIds, paymentMethodIds, type, formato, source, seriesId } = query;
 
     // Build where clause
     const where: Prisma.TransactionWhereInput = {
@@ -39,6 +39,16 @@ export class TransactionService {
     // Type filter
     if (type !== 'ALL') {
       where.type = type;
+    }
+
+    // Formato filter
+    if (formato !== 'ALL') {
+      where.formato = formato;
+    }
+
+    // Source filter
+    if (source !== 'ALL') {
+      where.source = source;
     }
 
     // Series filter
@@ -173,6 +183,9 @@ export class TransactionService {
       }
     }
 
+    // Auto-set formato based on installments
+    const formato = data.installments ? 'cuotas' : 'contado';
+
     return this.prisma.transaction.create({
       data: {
         userId,
@@ -183,6 +196,8 @@ export class TransactionService {
         categoryId: data.categoryId,
         paymentId: data.paymentMethodId,
         installments: data.installments || null,
+        formato,
+        source: 'manual', // Manual transactions default to 'manual'
         seriesId: data.seriesId || null,
       },
       include: {
@@ -259,7 +274,11 @@ export class TransactionService {
     if (data.amount !== undefined) updateData.amount = data.amount;
     if (data.categoryId) updateData.categoryId = data.categoryId;
     if (data.paymentMethodId) updateData.paymentId = data.paymentMethodId;
-    if (data.installments !== undefined) updateData.installments = data.installments;
+    if (data.installments !== undefined) {
+      updateData.installments = data.installments;
+      // Auto-update formato when installments change
+      updateData.formato = data.installments ? 'cuotas' : 'contado';
+    }
     if (data.seriesId !== undefined) updateData.seriesId = data.seriesId;
 
     return this.prisma.transaction.update({

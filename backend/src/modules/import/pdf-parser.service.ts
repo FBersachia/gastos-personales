@@ -16,6 +16,10 @@ export interface PdfParseResult {
   totalRecords: number;
   warnings: string[];
   rawText?: string; // For debugging
+  statementPeriod?: {
+    month: number; // 1-12
+    year: number;
+  };
 }
 
 export class PdfParserService {
@@ -65,12 +69,16 @@ export class PdfParserService {
       const parseWarnings = this.generateWarnings(transactions);
       warnings.push(...parseWarnings);
 
+      // Extract statement period
+      const statementPeriod = this.extractStatementPeriod(text, transactions);
+
       return {
         bank,
         transactions,
         totalRecords: transactions.length,
         warnings,
-        rawText: text
+        rawText: text,
+        statementPeriod
       };
     } catch (error: any) {
       throw new Error(`PDF parsing error: ${error.message}`);
@@ -491,6 +499,80 @@ export class PdfParserService {
     }
 
     return warnings;
+  }
+
+  /**
+   * Extract statement period from PDF text and transactions
+   * Tries to find period in text, otherwise uses transaction dates
+   */
+  private extractStatementPeriod(
+    text: string,
+    transactions: ParsedPdfTransaction[]
+  ): { month: number; year: number } | undefined {
+    // Month mapping for Spanish month names
+    const monthMap: Record<string, number> = {
+      'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+      'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+      'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+    };
+
+    // Try to find period patterns in text
+    // Pattern 1: "RESUMEN DEL 01/10 AL 31/10" or "DEL 01/10/24 AL 31/10/24"
+    const periodPattern1 = /(?:resumen\s+)?del\s+\d{1,2}\/(\d{1,2})(?:\/\d{2,4})?\s+al\s+\d{1,2}\/(\d{1,2})(?:\/(\d{2,4}))?/i;
+    const match1 = text.match(periodPattern1);
+    if (match1) {
+      const [, startMonth, endMonth, yearStr] = match1;
+      const month = parseInt(endMonth); // Use end month as statement month
+      const year = yearStr ? this.parseYear(yearStr) : new Date().getFullYear();
+      return { month, year };
+    }
+
+    // Pattern 2: "PERIODO: OCTUBRE 2024" or "OCTUBRE 2024"
+    const periodPattern2 = /(?:periodo|período|resumen)?\s*:?\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})/i;
+    const match2 = text.match(periodPattern2);
+    if (match2) {
+      const [, monthName, yearStr] = match2;
+      const month = monthMap[monthName.toLowerCase()];
+      const year = parseInt(yearStr);
+      return { month, year };
+    }
+
+    // Pattern 3: Extract from transactions if available
+    if (transactions.length > 0) {
+      // Find the most common month/year combination
+      const monthYearCounts = new Map<string, number>();
+      for (const txn of transactions) {
+        const key = `${txn.date.getMonth() + 1}-${txn.date.getFullYear()}`;
+        monthYearCounts.set(key, (monthYearCounts.get(key) || 0) + 1);
+      }
+
+      // Get the most frequent month/year
+      let maxCount = 0;
+      let mostCommon: { month: number; year: number } | undefined;
+      for (const [key, count] of monthYearCounts.entries()) {
+        if (count > maxCount) {
+          maxCount = count;
+          const [month, year] = key.split('-').map(Number);
+          mostCommon = { month, year };
+        }
+      }
+
+      return mostCommon;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Parse a year from 2 or 4 digit string
+   */
+  private parseYear(yearStr: string): number {
+    const year = parseInt(yearStr);
+    if (year < 100) {
+      // 2-digit year: 00-49 -> 2000-2049, 50-99 -> 1950-1999
+      return year < 50 ? 2000 + year : 1900 + year;
+    }
+    return year;
   }
 
   /**

@@ -9,6 +9,7 @@ import {
   ImportSummary,
 } from '@/api/import.api';
 import { getPaymentMethods } from '@/api/paymentMethods.api';
+import ButtonSpinner from '@/components/ui/ButtonSpinner';
 
 export default function CsvImport() {
   // File upload state
@@ -326,8 +327,9 @@ export default function CsvImport() {
               <button
                 onClick={handlePreview}
                 disabled={loading}
-                className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium flex items-center justify-center"
               >
+                {loading && <ButtonSpinner />}
                 {loading ? 'Loading Preview...' : 'Preview CSV'}
               </button>
             </div>
@@ -748,8 +750,9 @@ export default function CsvImport() {
             <button
               onClick={handleConfirmImport}
               disabled={importing}
-              className="w-full px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-lg"
+              className="w-full px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-lg flex items-center justify-center"
             >
+              {importing && <ButtonSpinner />}
               {importing ? 'Importing...' : `Import ${preview.summary.filteredRecords} Transactions`}
             </button>
           </div>

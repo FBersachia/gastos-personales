@@ -10,6 +10,7 @@ import {
   deleteMacroCategory
 } from '@/api/categories.api';
 import { Category, MacroCategory } from '@/types';
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
 export default function Categories() {
   const [categories, setCategories] = useState<any[]>([]);
@@ -174,11 +175,7 @@ export default function Categories() {
     : categories.filter(c => c.macroCategory?.id === filterMacroId);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
+    return <LoadingSkeleton type="table" rows={6} />;
   }
 
   return (
@@ -275,6 +272,9 @@ export default function Categories() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -291,6 +291,9 @@ export default function Categories() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredCategories.map((category) => (
                 <tr key={category.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                    {category.id}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {category.name}
                   </td>

@@ -6,6 +6,7 @@ import {
   PdfImportTransaction,
   ImportSummary,
 } from '@/api/import.api';
+import ButtonSpinner from '@/components/ui/ButtonSpinner';
 
 export default function PdfImport() {
   // File upload state
@@ -149,6 +150,7 @@ export default function PdfImport() {
       const result = await confirmPdfImport({
         bank: preview.bank,
         paymentMethodId: selectedPaymentMethod,
+        statementPeriod: preview.statementPeriod,
         transactions,
       });
       console.log('Import successful:', result);
@@ -246,8 +248,9 @@ export default function PdfImport() {
             <button
               onClick={handlePreview}
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium flex items-center justify-center"
             >
+              {loading && <ButtonSpinner />}
               {loading ? 'Processing PDF...' : 'Preview Transactions'}
             </button>
           </div>
@@ -267,7 +270,7 @@ export default function PdfImport() {
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4">2. Bank Detected & Summary</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div className="bg-blue-50 p-4 rounded">
                 <p className="text-sm text-gray-600">Detected Bank</p>
                 <p className="text-2xl font-bold text-blue-600">{preview.bank}</p>
@@ -280,6 +283,14 @@ export default function PdfImport() {
                 <p className="text-sm text-gray-600">Will Import</p>
                 <p className="text-2xl font-bold text-purple-600">{preview.summary.willImport}</p>
               </div>
+              {preview.statementPeriod && (
+                <div className="bg-orange-50 p-4 rounded">
+                  <p className="text-sm text-gray-600">Statement Period</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {preview.statementPeriod.month}/{preview.statementPeriod.year}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Warnings */}
@@ -386,8 +397,9 @@ export default function PdfImport() {
             <button
               onClick={handleConfirmImport}
               disabled={importing || !selectedPaymentMethod}
-              className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-lg"
+              className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-lg flex items-center justify-center"
             >
+              {importing && <ButtonSpinner />}
               {importing ? 'Importing...' : `Import ${preview.summary.willImport} Transactions`}
             </button>
           </div>

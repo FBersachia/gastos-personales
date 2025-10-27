@@ -8,6 +8,8 @@ export interface Transaction {
   description: string;
   amount: string;
   installments: string | null;
+  formato: 'cuotas' | 'contado';
+  source: 'csv' | 'pdf' | 'manual';
   userId: string;
   categoryId: string;
   paymentId: string;
@@ -52,6 +54,8 @@ export interface TransactionFilters {
   categoryIds?: string;
   paymentMethodIds?: string;
   type?: 'INCOME' | 'EXPENSE' | 'ALL';
+  formato?: 'cuotas' | 'contado' | 'ALL';
+  source?: 'csv' | 'pdf' | 'manual' | 'ALL';
   seriesId?: string;
 }
 
@@ -79,6 +83,8 @@ export const getTransactions = async (
     if (filters.categoryIds) params.append('categoryIds', filters.categoryIds);
     if (filters.paymentMethodIds) params.append('paymentMethodIds', filters.paymentMethodIds);
     if (filters.type) params.append('type', filters.type);
+    if (filters.formato) params.append('formato', filters.formato);
+    if (filters.source) params.append('source', filters.source);
     if (filters.seriesId) params.append('seriesId', filters.seriesId);
   }
 

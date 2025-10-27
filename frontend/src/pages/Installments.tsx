@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getPendingInstallments, PendingInstallment } from '../api/installments.api';
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
 export default function Installments() {
   const [installments, setInstallments] = useState<PendingInstallment[]>([]);
@@ -26,6 +27,19 @@ export default function Installments() {
       setLoading(false);
     }
   };
+
+  // Group installments by description
+  const groupedInstallments = installments.reduce((groups, installment) => {
+    const key = installment.description;
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(installment);
+    return groups;
+  }, {} as Record<string, PendingInstallment[]>);
+
+  // Sort groups alphabetically by description
+  const sortedGroupKeys = Object.keys(groupedInstallments).sort((a, b) => a.localeCompare(b));
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -63,14 +77,7 @@ export default function Installments() {
   };
 
   if (loading) {
-    return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-32 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton type="table" rows={6} />;
   }
 
   return (
@@ -190,68 +197,86 @@ export default function Installments() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {installments.map((installment) => {
-                  const percentage = getCompletionPercentage(
-                    installment.currentInstallment,
-                    installment.totalInstallments
-                  );
+                {sortedGroupKeys.map((description, groupIndex) => {
+                  const groupInstallments = groupedInstallments[description];
                   return (
-                    <tr key={installment.transactionId} className={getRowColorClass(percentage)}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {installment.description}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Total: {formatCurrency(installment.totalAmount)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{installment.paymentMethod.name}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{formatDate(installment.date)}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                          <div className="text-sm text-gray-900">
-                            {installment.currentInstallment}/{installment.totalInstallments}
+                    <>
+                      {/* Group Header */}
+                      <tr key={`header-${description}`} className="bg-gray-100">
+                        <td colSpan={8} className="px-6 py-3">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {description}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {groupInstallments.length} {groupInstallments.length === 1 ? 'installment' : 'installments'}
+                            </div>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                percentage >= 80
-                                  ? 'bg-green-500'
-                                  : percentage >= 50
-                                  ? 'bg-yellow-500'
-                                  : 'bg-blue-500'
-                              }`}
-                              style={{ width: `${percentage}%` }}
-                            ></div>
-                          </div>
-                          <div className="text-xs text-gray-500">{percentage}% paid</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
-                          {installment.pendingInstallments} remaining
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="text-sm text-gray-900">
-                          {formatCurrency(installment.amountPerInstallment)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="text-sm font-semibold text-red-600">
-                          {formatCurrency(installment.totalPending)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          {formatDate(installment.estimatedEndDate)}
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                      {/* Group Items */}
+                      {groupInstallments.map((installment) => {
+                        const percentage = getCompletionPercentage(
+                          installment.currentInstallment,
+                          installment.totalInstallments
+                        );
+                        return (
+                          <tr key={installment.transactionId} className={getRowColorClass(percentage)}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500 pl-4">
+                                Total: {formatCurrency(installment.totalAmount)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{installment.paymentMethod.name}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{formatDate(installment.date)}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                <div className="text-sm text-gray-900">
+                                  {installment.currentInstallment}/{installment.totalInstallments}
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full ${
+                                      percentage >= 80
+                                        ? 'bg-green-500'
+                                        : percentage >= 50
+                                        ? 'bg-yellow-500'
+                                        : 'bg-blue-500'
+                                    }`}
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                                <div className="text-xs text-gray-500">{percentage}% paid</div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+                                {installment.pendingInstallments} remaining
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="text-sm text-gray-900">
+                                {formatCurrency(installment.amountPerInstallment)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="text-sm font-semibold text-red-600">
+                                {formatCurrency(installment.totalPending)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">
+                                {formatDate(installment.estimatedEndDate)}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </>
                   );
                 })}
               </tbody>

@@ -24,6 +24,10 @@ export interface ImportConfirmRequest {
 export interface PdfImportConfirmRequest {
   bank: string;
   paymentMethodId: string;
+  statementPeriod?: {
+    month: number;
+    year: number;
+  };
   transactions: Array<{
     date: string;
     description: string;
@@ -77,6 +81,9 @@ export class ImportService {
         })
       : [];
 
+    // Default category ID for PDF imports
+    const DEFAULT_PDF_CATEGORY_ID = 'c621681b-4fd5-46ad-a476-dd88d4adea57';
+
     // Map parsed transactions to preview format
     const preview = result.transactions.map(txn => ({
       date: txn.date.toISOString(),
@@ -84,8 +91,8 @@ export class ImportService {
       amount: txn.amount,
       installments: txn.installments,
       originalLine: txn.originalLine,
-      // Try to auto-detect category based on description
-      suggestedCategoryId: this.findCategoryByDescription(txn.description, categories)
+      // Set default category for PDF imports
+      suggestedCategoryId: DEFAULT_PDF_CATEGORY_ID
     }));
 
     return {
@@ -96,6 +103,7 @@ export class ImportService {
         willImport: result.totalRecords
       },
       warnings: result.warnings,
+      statementPeriod: result.statementPeriod,
       availablePaymentMethods: paymentMethods.map(pm => ({
         id: pm.id,
         name: pm.name
@@ -136,6 +144,38 @@ export class ImportService {
       throw new Error('Invalid payment method');
     }
 
+    // Log transaction dates that seem unusual (for monitoring, not blocking)
+    // Note: Credit card statements can include transactions from various dates
+    // This is just informational and won't block the import
+    if (data.statementPeriod) {
+      const { month, year } = data.statementPeriod;
+      console.log(`[PDF Import] Statement period: ${month}/${year}`);
+
+      // Calculate previous month
+      const prevMonth = month === 1 ? 12 : month - 1;
+      const prevYear = month === 1 ? year - 1 : year;
+
+      let unusualDates = 0;
+      for (let i = 0; i < data.transactions.length; i++) {
+        const txn = data.transactions[i];
+        const txnDate = new Date(txn.date);
+        const txnMonth = txnDate.getMonth() + 1;
+        const txnYear = txnDate.getFullYear();
+
+        const isCurrentMonth = txnMonth === month && txnYear === year;
+        const isPreviousMonth = txnMonth === prevMonth && txnYear === prevYear;
+        const isInstallment = !!txn.installments;
+
+        if (!isCurrentMonth && !isPreviousMonth && !isInstallment) {
+          unusualDates++;
+        }
+      }
+
+      if (unusualDates > 0) {
+        console.log(`[PDF Import] Note: ${unusualDates} transactions with dates outside statement period (this is normal for installments)`);
+      }
+    }
+
     // Get all valid category IDs
     const categoryIds = data.transactions
       .map(t => t.categoryId)
@@ -172,6 +212,8 @@ export class ImportService {
         }
 
         // All PDF transactions are expenses by default (bank statements)
+        const formato = txn.installments ? 'cuotas' : 'contado';
+
         validTransactions.push({
           date: new Date(txn.date),
           type: 'EXPENSE' as TransactionType,
@@ -180,6 +222,8 @@ export class ImportService {
           categoryId: txn.categoryId,
           paymentId: data.paymentMethodId,
           installments: txn.installments || null,
+          formato,
+          source: 'pdf',
           seriesId: null,
           userId
         });
@@ -387,6 +431,9 @@ export class ImportService {
           throw new Error('Invalid installments format. Expected: n1/n2');
         }
 
+        // Calculate formato based on installments
+        const formato = txn.installments ? 'cuotas' : 'contado';
+
         // Add to valid transactions
         validTransactions.push({
           date: new Date(txn.date),
@@ -396,6 +443,8 @@ export class ImportService {
           categoryId: txn.categoryId,
           paymentId: txn.paymentMethodId, // Schema uses 'paymentId'
           installments: txn.installments || null,
+          formato,
+          source: 'csv',
           seriesId: txn.recurringSeriesId || null, // Schema uses 'seriesId'
           userId
         });

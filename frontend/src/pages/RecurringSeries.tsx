@@ -6,6 +6,7 @@ import {
   CreateRecurringSeriesDto,
   UpdateRecurringSeriesDto,
 } from '../api/recurringSeries.api';
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
 export default function RecurringSeriesPage() {
   const [series, setSeries] = useState<RecurringSeries[]>([]);
@@ -157,11 +158,7 @@ export default function RecurringSeriesPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
+    return <LoadingSkeleton type="table" rows={5} />;
   }
 
   return (

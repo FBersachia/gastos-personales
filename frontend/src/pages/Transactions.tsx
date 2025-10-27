@@ -12,6 +12,7 @@ import { getCategories } from '@/api/categories.api';
 import { getPaymentMethods } from '@/api/paymentMethods.api';
 import { recurringSeriesApi, RecurringSeriesDetail } from '@/api/recurringSeries.api';
 import { Category, PaymentMethod } from '@/types';
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
 export default function Transactions() {
   // Data state
@@ -194,11 +195,7 @@ export default function Transactions() {
   };
 
   if (loading && transactions.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
+    return <LoadingSkeleton type="table" rows={8} />;
   }
 
   return (
@@ -241,7 +238,7 @@ export default function Transactions() {
       {/* Filters */}
       {showFilters && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
               <select
@@ -252,6 +249,61 @@ export default function Transactions() {
                 <option value="ALL">All</option>
                 <option value="INCOME">Income</option>
                 <option value="EXPENSE">Expense</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+              <select
+                value={filters.paymentMethodIds?.[0] || ''}
+                onChange={(e) => handleFilterChange('paymentMethodIds', e.target.value ? [e.target.value] : undefined)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">All Payment Methods</option>
+                {paymentMethods.map((pm) => (
+                  <option key={pm.id} value={pm.id}>
+                    {pm.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select
+                value={filters.categoryIds?.[0] || ''}
+                onChange={(e) => handleFilterChange('categoryIds', e.target.value ? [e.target.value] : undefined)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Formato</label>
+              <select
+                value={filters.formato || 'ALL'}
+                onChange={(e) => handleFilterChange('formato', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="ALL">All</option>
+                <option value="contado">Contado</option>
+                <option value="cuotas">Cuotas</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
+              <select
+                value={filters.source || 'ALL'}
+                onChange={(e) => handleFilterChange('source', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="ALL">All</option>
+                <option value="manual">Manual</option>
+                <option value="csv">CSV</option>
+                <option value="pdf">PDF</option>
               </select>
             </div>
             <div>
@@ -303,7 +355,7 @@ export default function Transactions() {
         </div>
       ) : (
         <>
-          <div className="bg-white shadow-md rounded-lg overflow-hidden mb-4">
+          <div className="bg-white shadow-md rounded-lg overflow-x-auto mb-4">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -314,7 +366,9 @@ export default function Transactions() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Installments</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Formato</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Source</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase sticky right-0 bg-gray-50">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -347,19 +401,49 @@ export default function Transactions() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">
                       {transaction.installments || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleOpenModal(transaction)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(transaction.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                        transaction.formato === 'cuotas'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {transaction.formato}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                        transaction.source === 'manual'
+                          ? 'bg-blue-100 text-blue-800'
+                          : transaction.source === 'csv'
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-indigo-100 text-indigo-800'
+                      }`}>
+                        {transaction.source.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white">
+                      <div className="flex justify-center items-center gap-2">
+                        <button
+                          onClick={() => handleOpenModal(transaction)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                          title="Edit transaction"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(transaction.id)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                          title="Delete transaction"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

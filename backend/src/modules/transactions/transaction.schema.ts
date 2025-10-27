@@ -78,6 +78,8 @@ export const getTransactionsQuerySchema = z.object({
   categoryIds: z.string().optional(), // comma-separated UUIDs
   paymentMethodIds: z.string().optional(), // comma-separated UUIDs
   type: z.enum(['INCOME', 'EXPENSE', 'ALL']).optional().default('ALL'),
+  formato: z.enum(['cuotas', 'contado', 'ALL']).optional().default('ALL'),
+  source: z.enum(['csv', 'pdf', 'manual', 'ALL']).optional().default('ALL'),
   seriesId: z.string().uuid().optional(),
 });
 

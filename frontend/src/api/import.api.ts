@@ -72,6 +72,10 @@ export interface PdfPreviewResponse {
     willImport: number;
   };
   warnings: string[];
+  statementPeriod?: {
+    month: number;
+    year: number;
+  };
   availablePaymentMethods: Array<{ id: string; name: string }>;
   availableCategories: Array<{ id: string; name: string; macroCategory: string | null }>;
 }
@@ -87,6 +91,10 @@ export interface PdfImportTransaction {
 export interface PdfImportConfirmRequest {
   bank: string;
   paymentMethodId: string;
+  statementPeriod?: {
+    month: number;
+    year: number;
+  };
   transactions: PdfImportTransaction[];
 }
 

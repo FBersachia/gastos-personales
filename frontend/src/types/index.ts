@@ -36,6 +36,8 @@ export interface Transaction {
   description: string;
   amount: string;
   installments?: string | null;
+  formato: 'cuotas' | 'contado';
+  source: 'csv' | 'pdf' | 'manual';
   userId: string;
   categoryId: string;
   paymentId: string;

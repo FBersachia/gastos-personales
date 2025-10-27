@@ -106,6 +106,8 @@ model Transaction {
   description  String   @db.Text
   amount       Decimal  @db.Decimal(12, 2) // always positive, type determines sign
   installments String?  // format: "n1/n2" or null
+  formato      String   // "cuotas" or "contado"
+  source       String   // "csv", "pdf", or "manual"
   userId       String
   categoryId   String
   paymentId    String
@@ -125,5 +127,7 @@ model Transaction {
   @@index([paymentId])
   @@index([seriesId])
   @@index([userId, date])
+  @@index([formato])
+  @@index([source])
   @@map("transactions")
 }
