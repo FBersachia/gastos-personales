@@ -1,9 +1,50 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { CreateTransactionDto, UpdateTransactionDto, GetTransactionsQuery } from './transaction.schema';
+import { ExchangeRateService } from '../exchange-rates/exchange-rate.service';
 
 export class TransactionService {
-  constructor(private prisma: PrismaClient) {}
+  private exchangeRateService: ExchangeRateService;
+
+  constructor(private prisma: PrismaClient) {
+    this.exchangeRateService = new ExchangeRateService(prisma);
+  }
+
+  /**
+   * Serialize a transaction object, ensuring Decimal fields are properly converted to strings
+   * Also includes ARS equivalent for USD transactions
+   */
+  private async serializeTransaction(transaction: any, userId: string) {
+    // Convert Decimal to number first, then to string to avoid precision issues
+    const amountNumber = Number(transaction.amount);
+
+    // Get exchange rate if currency is not ARS
+    let amountARS = amountNumber;
+    let exchangeRate = 1;
+
+    if (transaction.currency && transaction.currency !== 'ARS') {
+      exchangeRate = await this.exchangeRateService.getExchangeRateForDate(
+        userId,
+        new Date(transaction.date),
+        transaction.currency
+      );
+      amountARS = amountNumber * exchangeRate;
+    }
+
+    return {
+      ...transaction,
+      amount: amountNumber.toFixed(2),
+      amountARS: amountARS.toFixed(2),
+      exchangeRate: exchangeRate.toFixed(4),
+    };
+  }
+
+  /**
+   * Serialize multiple transactions
+   */
+  private async serializeTransactions(transactions: any[], userId: string) {
+    return Promise.all(transactions.map(t => this.serializeTransaction(t, userId)));
+  }
 
   async findAll(userId: string, query: GetTransactionsQuery) {
     const { page, limit, dateFrom, dateTo, categoryIds, paymentMethodIds, type, formato, source, seriesId } = query;
@@ -92,20 +133,44 @@ export class TransactionService {
     ]);
 
     // Calculate totals (for all transactions matching filter, not just current page)
-    const aggregations = await this.prisma.transaction.groupBy({
-      by: ['type'],
+    // Note: Summary totals use ARS-converted amounts for accurate calculations
+    const allTransactions = await this.prisma.transaction.findMany({
       where,
-      _sum: {
+      select: {
+        type: true,
         amount: true,
+        currency: true,
+        date: true,
       },
     });
 
-    const totalIncome = aggregations.find(a => a.type === 'INCOME')?._sum.amount || 0;
-    const totalExpense = aggregations.find(a => a.type === 'EXPENSE')?._sum.amount || 0;
-    const balance = Number(totalIncome) - Number(totalExpense);
+    let totalIncomeARS = 0;
+    let totalExpenseARS = 0;
+
+    for (const txn of allTransactions) {
+      const amount = Number(txn.amount);
+      let amountARS = amount;
+
+      if (txn.currency && txn.currency !== 'ARS') {
+        const rate = await this.exchangeRateService.getExchangeRateForDate(
+          userId,
+          new Date(txn.date),
+          txn.currency
+        );
+        amountARS = amount * rate;
+      }
+
+      if (txn.type === 'INCOME') {
+        totalIncomeARS += amountARS;
+      } else {
+        totalExpenseARS += amountARS;
+      }
+    }
+
+    const balance = totalIncomeARS - totalExpenseARS;
 
     return {
-      data: transactions,
+      data: await this.serializeTransactions(transactions, userId),
       pagination: {
         page,
         limit,
@@ -113,9 +178,9 @@ export class TransactionService {
         totalPages: Math.ceil(total / limit),
       },
       summary: {
-        totalIncome: totalIncome.toString(),
-        totalExpense: totalExpense.toString(),
-        balance: balance.toString(),
+        totalIncome: totalIncomeARS.toFixed(2),
+        totalExpense: totalExpenseARS.toFixed(2),
+        balance: balance.toFixed(2),
       },
     };
   }
@@ -150,7 +215,7 @@ export class TransactionService {
       throw new NotFoundError('Transaction not found');
     }
 
-    return transaction;
+    return this.serializeTransaction(transaction, userId);
   }
 
   async create(userId: string, data: CreateTransactionDto) {
@@ -186,13 +251,14 @@ export class TransactionService {
     // Auto-set formato based on installments
     const formato = data.installments ? 'cuotas' : 'contado';
 
-    return this.prisma.transaction.create({
+    const transaction = await this.prisma.transaction.create({
       data: {
         userId,
         date: new Date(data.date),
         type: data.type,
         description: data.description,
         amount: data.amount,
+        currency: data.currency || 'ARS',
         categoryId: data.categoryId,
         paymentId: data.paymentMethodId,
         installments: data.installments || null,
@@ -222,6 +288,8 @@ export class TransactionService {
         },
       },
     });
+
+    return this.serializeTransaction(transaction, userId);
   }
 
   async update(userId: string, id: string, data: UpdateTransactionDto) {
@@ -272,6 +340,7 @@ export class TransactionService {
     if (data.type) updateData.type = data.type;
     if (data.description) updateData.description = data.description;
     if (data.amount !== undefined) updateData.amount = data.amount;
+    if (data.currency) updateData.currency = data.currency;
     if (data.categoryId) updateData.categoryId = data.categoryId;
     if (data.paymentMethodId) updateData.paymentId = data.paymentMethodId;
     if (data.installments !== undefined) {
@@ -281,7 +350,7 @@ export class TransactionService {
     }
     if (data.seriesId !== undefined) updateData.seriesId = data.seriesId;
 
-    return this.prisma.transaction.update({
+    const updatedTransaction = await this.prisma.transaction.update({
       where: { id },
       data: updateData,
       include: {
@@ -306,6 +375,8 @@ export class TransactionService {
         },
       },
     });
+
+    return this.serializeTransaction(updatedTransaction, userId);
   }
 
   async delete(userId: string, id: string) {
@@ -321,5 +392,123 @@ export class TransactionService {
     await this.prisma.transaction.delete({
       where: { id },
     });
+  }
+
+  async getMatchHistory(userId: string, filters?: { result?: string; dateFrom?: string; dateTo?: string }) {
+    // First, find the "deporte" category for this user
+    const deporteCategory = await this.prisma.category.findFirst({
+      where: {
+        userId,
+        name: {
+          contains: 'deporte',
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    // If no deporte category found, return empty results
+    if (!deporteCategory) {
+      return {
+        matches: [],
+        statistics: {
+          totalMatches: 0,
+          wins: 0,
+          losses: 0,
+          draws: 0,
+          winPercentage: '0',
+          totalAmount: '0',
+        },
+      };
+    }
+
+    // Build where clause for match transactions
+    const where: Prisma.TransactionWhereInput = {
+      userId,
+      categoryId: deporteCategory.id,
+    };
+
+    // Build OR condition for match keywords based on filter
+    if (filters?.result && filters.result !== 'ALL') {
+      // If specific result is selected, only search for that keyword
+      where.description = {
+        contains: filters.result.toLowerCase(),
+        mode: 'insensitive',
+      };
+    } else {
+      // If no specific result filter, search for all three keywords
+      where.OR = [
+        { description: { contains: 'perdido', mode: 'insensitive' } },
+        { description: { contains: 'ganado', mode: 'insensitive' } },
+        { description: { contains: 'empatado', mode: 'insensitive' } },
+      ];
+    }
+
+    // Apply date filters
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.date = {};
+      if (filters.dateFrom) {
+        where.date.gte = new Date(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        where.date.lte = new Date(filters.dateTo);
+      }
+    }
+
+    // Fetch all matches
+    const matches = await this.prisma.transaction.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        paymentMethod: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Parse result from description and serialize
+    const matchesWithResult = await Promise.all(
+      matches.map(async (match) => {
+        let result = 'unknown';
+        const desc = match.description.toLowerCase();
+        if (desc.includes('ganado')) result = 'ganado';
+        else if (desc.includes('perdido')) result = 'perdido';
+        else if (desc.includes('empatado')) result = 'empatado';
+
+        const serialized = await this.serializeTransaction(match, userId);
+        return {
+          ...serialized,
+          result,
+        };
+      })
+    );
+
+    // Calculate statistics (use amountARS for accurate totals)
+    const totalMatches = matchesWithResult.length;
+    const wins = matchesWithResult.filter((m) => m.result === 'ganado').length;
+    const losses = matchesWithResult.filter((m) => m.result === 'perdido').length;
+    const draws = matchesWithResult.filter((m) => m.result === 'empatado').length;
+    const winPercentage = totalMatches > 0 ? ((wins / totalMatches) * 100).toFixed(2) : '0';
+    const totalAmount = matchesWithResult.reduce((sum, m) => sum + Number(m.amountARS), 0);
+
+    return {
+      matches: matchesWithResult,
+      statistics: {
+        totalMatches,
+        wins,
+        losses,
+        draws,
+        winPercentage,
+        totalAmount: totalAmount.toFixed(2),
+      },
+    };
   }
 }

@@ -7,6 +7,9 @@ export interface Transaction {
   type: 'INCOME' | 'EXPENSE';
   description: string;
   amount: string;
+  currency: 'ARS' | 'USD';
+  amountARS: string; // Amount converted to ARS
+  exchangeRate: string; // Exchange rate used for conversion
   installments: string | null;
   formato: 'cuotas' | 'contado';
   source: 'csv' | 'pdf' | 'manual';
@@ -64,6 +67,7 @@ export interface CreateTransactionData {
   type: 'INCOME' | 'EXPENSE';
   description: string;
   amount: number;
+  currency?: 'ARS' | 'USD';
   categoryId: string;
   paymentMethodId: string;
   installments?: string | null;
@@ -119,4 +123,47 @@ export const updateTransaction = async (
 
 export const deleteTransaction = async (id: string): Promise<void> => {
   await apiClient.delete(`/transactions/${id}`);
+};
+
+// Match History types and functions
+export interface Match extends Transaction {
+  result: 'ganado' | 'perdido' | 'empatado';
+}
+
+export interface MatchHistoryStatistics {
+  totalMatches: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  winPercentage: string;
+  totalAmount: string;
+}
+
+export interface MatchHistoryResponse {
+  matches: Match[];
+  statistics: MatchHistoryStatistics;
+}
+
+export interface MatchHistoryFilters {
+  result?: 'ganado' | 'perdido' | 'empatado' | 'ALL';
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export const getMatchHistory = async (
+  filters?: MatchHistoryFilters
+): Promise<MatchHistoryResponse> => {
+  const params = new URLSearchParams();
+
+  if (filters) {
+    if (filters.result) params.append('result', filters.result);
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+  }
+
+  const response = await apiClient.get<ApiResponse<MatchHistoryResponse>>(
+    `/transactions/match-history?${params.toString()}`
+  );
+
+  return response.data.data;
 };

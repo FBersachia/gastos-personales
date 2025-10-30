@@ -156,16 +156,39 @@ export class CsvParserService {
     const cleaned = amountStr.replace(/[^\d.,-]/g, '');
 
     // Handle different decimal separators
-    // If there's a comma after a dot, or comma is the last separator, it's decimal
     const lastComma = cleaned.lastIndexOf(',');
     const lastDot = cleaned.lastIndexOf('.');
 
     let normalized = cleaned;
+
+    // Count occurrences of dots and commas
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    const commaCount = (cleaned.match(/,/g) || []).length;
+
     if (lastComma > lastDot) {
-      // Comma is decimal separator
+      // Comma is after dot, so comma is decimal separator
+      // Example: 1.234,56 → 1234.56
       normalized = cleaned.replace(/\./g, '').replace(',', '.');
-    } else {
-      // Dot is decimal separator
+    } else if (lastDot > lastComma) {
+      // Dot is after comma, so dot is decimal separator
+      // BUT: check if dot is thousands separator (e.g., 7.000 should be 7000, not 7.0)
+
+      // If there's only one dot and it's followed by exactly 3 digits and no more, it's a thousands separator
+      const afterDot = cleaned.substring(lastDot + 1);
+      const hasThreeDigitsAfterDot = /^-?\d*\.?\d{3}$/.test(cleaned.substring(cleaned.indexOf(cleaned.match(/\d/) as any)));
+
+      if (dotCount === 1 && commaCount === 0 && afterDot.length === 3 && !/\./.test(afterDot)) {
+        // This is a thousands separator: 7.000 → 7000
+        normalized = cleaned.replace(/\./g, '');
+      } else {
+        // This is a decimal separator: 7.50 → 7.50
+        normalized = cleaned.replace(/,/g, '');
+      }
+    } else if (dotCount > 1) {
+      // Multiple dots = thousands separators (e.g., 1.234.567)
+      normalized = cleaned.replace(/\./g, '');
+    } else if (commaCount > 1) {
+      // Multiple commas = thousands separators (e.g., 1,234,567)
       normalized = cleaned.replace(/,/g, '');
     }
 

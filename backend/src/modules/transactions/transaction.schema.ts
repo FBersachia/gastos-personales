@@ -26,17 +26,24 @@ export const createTransactionSchema = z.object({
     .number()
     .positive('Amount must be positive')
     .max(999999999.99, 'Amount is too large'),
+  currency: z.enum(['ARS', 'USD'], {
+    errorMap: () => ({ message: 'Currency must be ARS or USD' }),
+  }).default('ARS'),
   categoryId: z.string().uuid('Invalid category ID'),
   paymentMethodId: z.string().uuid('Invalid payment method ID'),
   installments: z
-    .string()
-    .regex(installmentsRegex, 'Installments must be in format n1/n2')
-    .refine((val) => {
-      const [current, total] = val.split('/').map(Number);
-      return current <= total && current > 0 && total > 0;
-    }, 'Invalid installments: current must be <= total and both must be positive')
-    .nullable()
-    .optional(),
+    .preprocess(
+      (val) => (val === '' ? null : val), // Convert empty string to null
+      z
+        .string()
+        .regex(installmentsRegex, 'Installments must be in format n1/n2')
+        .refine((val) => {
+          const [current, total] = val.split('/').map(Number);
+          return current <= total && current > 0 && total > 0;
+        }, 'Invalid installments: current must be <= total and both must be positive')
+        .nullable()
+        .optional()
+    ),
   seriesId: z.string().uuid('Invalid series ID').nullable().optional(),
 });
 
@@ -54,17 +61,22 @@ export const updateTransactionSchema = z.object({
   type: z.enum(['INCOME', 'EXPENSE']).optional(),
   description: z.string().min(1).max(500).trim().optional(),
   amount: z.number().positive().max(999999999.99).optional(),
+  currency: z.enum(['ARS', 'USD']).optional(),
   categoryId: z.string().uuid().optional(),
   paymentMethodId: z.string().uuid().optional(),
   installments: z
-    .string()
-    .regex(installmentsRegex)
-    .refine((val) => {
-      const [current, total] = val.split('/').map(Number);
-      return current <= total && current > 0 && total > 0;
-    })
-    .nullable()
-    .optional(),
+    .preprocess(
+      (val) => (val === '' ? null : val), // Convert empty string to null
+      z
+        .string()
+        .regex(installmentsRegex)
+        .refine((val) => {
+          const [current, total] = val.split('/').map(Number);
+          return current <= total && current > 0 && total > 0;
+        })
+        .nullable()
+        .optional()
+    ),
   seriesId: z.string().uuid().nullable().optional(),
 });
 
@@ -83,6 +95,13 @@ export const getTransactionsQuerySchema = z.object({
   seriesId: z.string().uuid().optional(),
 });
 
+export const getMatchHistoryQuerySchema = z.object({
+  result: z.enum(['ganado', 'perdido', 'empatado', 'ALL']).optional().default('ALL'),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+});
+
 export type CreateTransactionDto = z.infer<typeof createTransactionSchema>;
 export type UpdateTransactionDto = z.infer<typeof updateTransactionSchema>;
 export type GetTransactionsQuery = z.infer<typeof getTransactionsQuerySchema>;
+export type GetMatchHistoryQuery = z.infer<typeof getMatchHistoryQuerySchema>;

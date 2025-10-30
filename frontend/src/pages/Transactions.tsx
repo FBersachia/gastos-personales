@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import {
   getTransactions,
   createTransaction,
@@ -15,6 +16,8 @@ import { Category, PaymentMethod } from '@/types';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
 export default function Transactions() {
+  const toast = useToast();
+
   // Data state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -43,6 +46,7 @@ export default function Transactions() {
     type: 'EXPENSE',
     description: '',
     amount: 0,
+    currency: 'ARS',
     categoryId: '',
     paymentMethodId: '',
     installments: null,
@@ -99,6 +103,7 @@ export default function Transactions() {
         type: transaction.type,
         description: transaction.description,
         amount: parseFloat(transaction.amount),
+        currency: transaction.currency || 'ARS',
         categoryId: transaction.categoryId,
         paymentMethodId: transaction.paymentId,
         installments: transaction.installments,
@@ -111,6 +116,7 @@ export default function Transactions() {
         type: 'EXPENSE',
         description: '',
         amount: 0,
+        currency: 'ARS',
         categoryId: categories[0]?.id || '',
         paymentMethodId: paymentMethods[0]?.id || '',
         installments: null,
@@ -151,12 +157,17 @@ export default function Transactions() {
     try {
       if (editingTransaction) {
         await updateTransaction(editingTransaction.id, formData);
+        console.log('Transaction updated, showing toast...');
+        toast.success('Transaction updated successfully');
       } else {
         await createTransaction(formData);
+        console.log('Transaction created, showing toast...');
+        toast.success('Transaction created successfully');
       }
       await fetchTransactions();
       handleCloseModal();
     } catch (err: any) {
+      console.error('Error saving transaction:', err);
       setFormError(err.response?.data?.error?.message || 'Failed to save transaction');
     }
   };
@@ -164,6 +175,7 @@ export default function Transactions() {
   const handleDelete = async (id: string) => {
     try {
       await deleteTransaction(id);
+      toast.success('Transaction deleted successfully');
       await fetchTransactions();
       setDeleteConfirm(null);
     } catch (err: any) {
@@ -187,6 +199,8 @@ export default function Transactions() {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(parseFloat(amount));
   };
 
@@ -355,19 +369,23 @@ export default function Transactions() {
         </div>
       ) : (
         <>
-          <div className="bg-white shadow-md rounded-lg overflow-x-auto mb-4">
-            <table className="min-w-full divide-y divide-gray-200">
+          {/* Scroll hint for mobile */}
+          <div className="mb-2 text-sm text-gray-500 md:hidden">
+            👉 Desliza la tabla horizontalmente para ver más columnas
+          </div>
+          <div className="bg-white shadow-md rounded-lg overflow-x-auto mb-4 relative">
+            <table className="w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Installments</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Formato</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Source</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Payment</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase min-w-[150px]">Amount</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Installments</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Formato</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Source</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase sticky right-0 bg-gray-50">Actions</th>
                 </tr>
               </thead>
@@ -377,7 +395,7 @@ export default function Transactions() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(transaction.date)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <span className={`px-2 py-1 text-xs font-semibold rounded ${
                         transaction.type === 'INCOME'
                           ? 'bg-green-100 text-green-800'
@@ -389,19 +407,31 @@ export default function Transactions() {
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                       {transaction.description}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                       {transaction.category.name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                       {transaction.paymentMethod.name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(transaction.amount)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900 min-w-[150px]">
+                      <div className="flex flex-col items-end">
+                        <span className="flex items-center gap-1">
+                          {transaction.currency === 'USD' && (
+                            <span className="text-xs font-semibold text-blue-600 px-1.5 py-0.5 bg-blue-50 rounded">USD</span>
+                          )}
+                          {transaction.currency === 'USD' ? `$${parseFloat(transaction.amount).toFixed(2)}` : formatCurrency(transaction.amount)}
+                        </span>
+                        {transaction.currency === 'USD' && parseFloat(transaction.exchangeRate) > 1 && (
+                          <span className="text-xs text-gray-500">
+                            ≈ {formatCurrency(transaction.amountARS)}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500 hidden xl:table-cell">
                       {transaction.installments || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center hidden xl:table-cell">
                       <span className={`px-2 py-1 text-xs font-semibold rounded ${
                         transaction.formato === 'cuotas'
                           ? 'bg-purple-100 text-purple-800'
@@ -410,7 +440,7 @@ export default function Transactions() {
                         {transaction.formato}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center hidden xl:table-cell">
                       <span className={`px-2 py-1 text-xs font-semibold rounded ${
                         transaction.source === 'manual'
                           ? 'bg-blue-100 text-blue-800'
@@ -526,7 +556,7 @@ export default function Transactions() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Amount *</label>
                   <input
@@ -538,6 +568,17 @@ export default function Transactions() {
                     placeholder="0.00"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Currency *</label>
+                  <select
+                    value={formData.currency}
+                    onChange={(e) => setFormData({ ...formData, currency: e.target.value as 'ARS' | 'USD' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="ARS">ARS</option>
+                    <option value="USD">USD</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Installments</label>

@@ -12,6 +12,8 @@ import RecurringSeries from '@/pages/RecurringSeries';
 import Installments from '@/pages/Installments';
 import CsvImport from '@/pages/CsvImport';
 import PdfImport from '@/pages/PdfImport';
+import MatchHistory from '@/pages/MatchHistory';
+import ExchangeRates from '@/pages/ExchangeRates';
 import Layout from '@/components/layout/Layout';
 
 // Protected Route wrapper
@@ -92,6 +94,14 @@ export const router = createBrowserRouter([
       {
         path: 'import/pdf',
         element: <PdfImport />,
+      },
+      {
+        path: 'match-history',
+        element: <MatchHistory />,
+      },
+      {
+        path: 'exchange-rates',
+        element: <ExchangeRates />,
       },
     ],
   },

@@ -25,24 +25,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 5000) => {
+  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 3000) => {
     const id = Math.random().toString(36).substring(7);
     setToasts((prev) => [...prev, { id, message, type, duration }]);
   }, []);
 
-  const success = useCallback((message: string, duration = 5000) => {
+  const success = useCallback((message: string, duration = 3000) => {
     showToast(message, 'success', duration);
   }, [showToast]);
 
-  const error = useCallback((message: string, duration = 5000) => {
+  const error = useCallback((message: string, duration = 3000) => {
     showToast(message, 'error', duration);
   }, [showToast]);
 
-  const warning = useCallback((message: string, duration = 5000) => {
+  const warning = useCallback((message: string, duration = 3000) => {
     showToast(message, 'warning', duration);
   }, [showToast]);
 
-  const info = useCallback((message: string, duration = 5000) => {
+  const info = useCallback((message: string, duration = 3000) => {
     showToast(message, 'info', duration);
   }, [showToast]);
 

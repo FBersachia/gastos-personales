@@ -16,6 +16,7 @@ import { recurringSeriesRouter } from './modules/recurring-series/recurring-seri
 import { installmentRouter } from './modules/installments/installment.routes';
 import importRouter from './modules/import/import.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
+import { exchangeRateRouter } from './modules/exchange-rates/exchange-rate.routes';
 
 const app = express();
 
@@ -31,7 +32,7 @@ app.use(
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Limit each IP to 1000 requests per windowMs (increased for development)
   message: 'Too many requests from this IP, please try again later.',
 });
 
@@ -82,6 +83,7 @@ app.use('/api/v1/recurring-series', recurringSeriesRouter);
 app.use('/api/v1/installments', installmentRouter);
 app.use('/api/v1/import', importRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
+app.use('/api/v1/exchange-rates', exchangeRateRouter);
 
 // 404 handler
 app.use((req, res) => {

@@ -7,6 +7,9 @@ const router = Router();
 // All routes require authentication
 router.use(authenticate);
 
+// GET /api/v1/transactions/match-history - Get match history (must be before /:id route)
+router.get('/match-history', transactionController.getMatchHistory.bind(transactionController));
+
 // GET /api/v1/transactions - List all transactions with filters and pagination
 router.get('/', transactionController.getAll.bind(transactionController));
 

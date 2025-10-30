@@ -81,6 +81,30 @@ export class ImportService {
         })
       : [];
 
+    // Auto-detect payment method ID from detected payment method name
+    let detectedPaymentMethodId: string | null = null;
+
+    if (result.detectedPaymentMethod && result.detectedPaymentMethod !== 'Unknown') {
+      // First try hardcoded mapping (case-insensitive)
+      const hardcodedId = this.PAYMENT_METHOD_IDS[result.detectedPaymentMethod.toLowerCase()];
+
+      if (hardcodedId) {
+        // Verify it exists in user's payment methods
+        const exists = paymentMethods.find(pm => pm.id === hardcodedId);
+        if (exists) {
+          detectedPaymentMethodId = hardcodedId;
+        }
+      } else {
+        // Fallback: find by name match
+        const matchedPm = paymentMethods.find(
+          pm => pm.name.toLowerCase() === result.detectedPaymentMethod.toLowerCase()
+        );
+        if (matchedPm) {
+          detectedPaymentMethodId = matchedPm.id;
+        }
+      }
+    }
+
     // Default category ID for PDF imports
     const DEFAULT_PDF_CATEGORY_ID = 'c621681b-4fd5-46ad-a476-dd88d4adea57';
 
@@ -89,6 +113,7 @@ export class ImportService {
       date: txn.date.toISOString(),
       description: txn.description,
       amount: txn.amount,
+      currency: txn.currency,
       installments: txn.installments,
       originalLine: txn.originalLine,
       // Set default category for PDF imports
@@ -97,6 +122,8 @@ export class ImportService {
 
     return {
       bank: result.bank,
+      detectedPaymentMethod: result.detectedPaymentMethod,
+      detectedPaymentMethodId,
       preview,
       summary: {
         totalRecords: result.totalRecords,
@@ -219,6 +246,7 @@ export class ImportService {
           type: 'EXPENSE' as TransactionType,
           description: txn.description,
           amount: txn.amount,
+          currency: txn.currency,
           categoryId: txn.categoryId,
           paymentId: data.paymentMethodId,
           installments: txn.installments || null,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { getPendingInstallments, PendingInstallment } from '../api/installments.api';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 
@@ -45,7 +45,8 @@ export default function Installments() {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS',
-      minimumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
@@ -200,9 +201,9 @@ export default function Installments() {
                 {sortedGroupKeys.map((description, groupIndex) => {
                   const groupInstallments = groupedInstallments[description];
                   return (
-                    <>
+                    <Fragment key={`group-${description}`}>
                       {/* Group Header */}
-                      <tr key={`header-${description}`} className="bg-gray-100">
+                      <tr className="bg-gray-100">
                         <td colSpan={8} className="px-6 py-3">
                           <div className="flex items-center justify-between">
                             <div className="text-sm font-semibold text-gray-900">
@@ -276,7 +277,7 @@ export default function Installments() {
                           </tr>
                         );
                       })}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

@@ -4,6 +4,7 @@ import {
   createTransactionSchema,
   updateTransactionSchema,
   getTransactionsQuerySchema,
+  getMatchHistoryQuerySchema,
 } from './transaction.schema';
 import { successResponse } from '../../utils/response';
 import { prisma } from '../../config/database';
@@ -72,6 +73,29 @@ export class TransactionController {
           message: 'Transaction deleted successfully',
         })
       );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMatchHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const query = getMatchHistoryQuerySchema.parse(req.query);
+
+      const filters: any = {};
+      if (query.result !== 'ALL') {
+        filters.result = query.result;
+      }
+      if (query.dateFrom) {
+        filters.dateFrom = query.dateFrom;
+      }
+      if (query.dateTo) {
+        filters.dateTo = query.dateTo;
+      }
+
+      const result = await transactionService.getMatchHistory(userId, filters);
+      return res.json(successResponse(result));
     } catch (error) {
       next(error);
     }

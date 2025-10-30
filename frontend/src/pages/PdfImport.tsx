@@ -94,8 +94,11 @@ export default function PdfImport() {
       });
       setCategoryMappings(mappings);
 
-      // Auto-select first payment method if available
-      if (result.availablePaymentMethods.length > 0 && !selectedPaymentMethod) {
+      // Auto-select detected payment method from PDF, or fallback to first available
+      if (result.detectedPaymentMethodId) {
+        setSelectedPaymentMethod(result.detectedPaymentMethodId);
+        console.log(`Auto-detected payment method: ${result.detectedPaymentMethod} (${result.detectedPaymentMethodId})`);
+      } else if (result.availablePaymentMethods.length > 0 && !selectedPaymentMethod) {
         setSelectedPaymentMethod(result.availablePaymentMethods[0].id);
       }
     } catch (err: any) {
@@ -141,6 +144,7 @@ export default function PdfImport() {
           date: txn.date,
           description: txn.description,
           amount: txn.amount,
+          currency: txn.currency,
           categoryId,
           installments: txn.installments || undefined,
         };
@@ -344,6 +348,9 @@ export default function PdfImport() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Amount
                     </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Currency
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Installments
                     </th>
@@ -363,6 +370,15 @@ export default function PdfImport() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-red-600">
                         ${txn.amount.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                          txn.currency === 'USD'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {txn.currency}
+                        </span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {txn.installments || '-'}

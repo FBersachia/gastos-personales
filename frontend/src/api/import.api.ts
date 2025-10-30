@@ -59,6 +59,7 @@ export interface PdfTransaction {
   date: string;
   description: string;
   amount: number;
+  currency: 'ARS' | 'USD';
   installments: string | null;
   originalLine: number;
   suggestedCategoryId: string | null;
@@ -66,6 +67,8 @@ export interface PdfTransaction {
 
 export interface PdfPreviewResponse {
   bank: string;
+  detectedPaymentMethod: string;
+  detectedPaymentMethodId: string | null;
   preview: PdfTransaction[];
   summary: {
     totalRecords: number;
@@ -84,6 +87,7 @@ export interface PdfImportTransaction {
   date: string;
   description: string;
   amount: number;
+  currency: 'ARS' | 'USD';
   categoryId: string;
   installments?: string;
 }
