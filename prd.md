@@ -71,16 +71,21 @@
 - Error handling and detailed logging
 - Navigation link integrated
 
-✅ **Sprint 6: PDF Import - COMPLETED (2025-10-25)**
+✅ **Sprint 6: PDF Import - COMPLETED & ENHANCED (2025-10-30)**
 - PDF file upload with drag & drop (Frontend)
 - PDF parser service with pdf-parse (Backend)
 - **Bank detection:** Santander, Galicia, Amex
 - **PDF parsers per bank:**
-  - Santander: Date/description/amount extraction
-  - Galicia: Date/description/amount extraction
-  - Amex: Date/description/amount extraction with DD/MM format support
+  - Santander (Visa): Date/description/amount extraction + USD column support
+  - Galicia (Visa): Date/description/amount extraction
+  - Galicia (Amex): Enhanced parser for 3 mixed formats (multi-line, concatenated, spaced) + Dolares column
 - Transaction extraction from PDF statements
 - Installments detection from descriptions
+- **Installment date logic:** Uses statement period date instead of original purchase date for accounting accuracy
+- **USD Transaction Detection:**
+  - Amex Galicia: Extracts USD from "Dolares" column for foreign currency transactions (CAD, EUR, etc.)
+  - Visa Santander: Extracts USD from "U$S" column for foreign currency transactions
+  - Supports 13 currencies: USD, CAD, EUR, GBP, CHF, JPY, AUD, NZD, BRL, CLP, MXN, COP, PEN, UYU
 - Payment method selection (applies to all transactions)
 - Category mapping interface with auto-suggestions
 - Preview table with editable categories
@@ -110,6 +115,7 @@
 - See `tasklist.md` for detailed task breakdown
 
 ## RULES
+- If there's a consistent error check keyword on index from `errors.md`
 - Don't ever say "production-ready" unless you checked it first with me.
 - Update `tasklist.md` everytime you complete a task.
 - Keep this file updated with current project status.

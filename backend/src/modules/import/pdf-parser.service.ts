@@ -1,17 +1,17 @@
-import pdf from 'pdf-parse';
-
 export type BankType = 'SANTANDER' | 'GALICIA' | 'AMEX' | 'UNKNOWN';
 
 export interface ParsedPdfTransaction {
   date: Date;
   description: string;
   amount: number;
+  currency: 'ARS' | 'USD';
   installments: string | null;
   originalLine: number;
 }
 
 export interface PdfParseResult {
   bank: BankType;
+  detectedPaymentMethod: string; // e.g., "Visa Galicia", "Amex Santander"
   transactions: ParsedPdfTransaction[];
   totalRecords: number;
   warnings: string[];
@@ -28,16 +28,23 @@ export class PdfParserService {
    */
   async parse(fileBuffer: Buffer): Promise<PdfParseResult> {
     try {
+      // Import pdf-parse (CommonJS module) - tsx supports require
+      const pdfParse = require('pdf-parse');
+
       // Extract text from PDF
-      const pdfData = await pdf(fileBuffer);
+      const pdfData = await pdfParse(fileBuffer);
       const text = pdfData.text;
 
       // Detect bank type
       const bank = this.detectBank(text);
 
+      // Detect payment method (e.g., "Visa Galicia", "Amex Santander")
+      const detectedPaymentMethod = this.detectPaymentMethod(text, bank);
+
       if (bank === 'UNKNOWN') {
         return {
           bank,
+          detectedPaymentMethod: 'Unknown',
           transactions: [],
           totalRecords: 0,
           warnings: ['Could not detect bank type from PDF. Supported banks: Santander, Galicia, Amex'],
@@ -74,6 +81,7 @@ export class PdfParserService {
 
       return {
         bank,
+        detectedPaymentMethod,
         transactions,
         totalRecords: transactions.length,
         warnings,
@@ -126,6 +134,78 @@ export class PdfParserService {
   }
 
   /**
+   * Detect payment method from PDF text (e.g., "Visa Galicia", "Amex Santander")
+   * Detects both bank and card type
+   */
+  private detectPaymentMethod(text: string, bank: BankType): string {
+    const lowerText = text.toLowerCase();
+
+    // Detect card type
+    let cardType = '';
+
+    // Check for Visa
+    if (
+      lowerText.includes('visa') ||
+      lowerText.includes('tarjeta visa') ||
+      lowerText.includes('resumen visa')
+    ) {
+      cardType = 'Visa';
+    }
+    // Check for American Express / Amex
+    else if (
+      lowerText.includes('american express') ||
+      lowerText.includes('amex') ||
+      lowerText.includes('tarjeta american express')
+    ) {
+      cardType = 'Amex';
+    }
+
+    // Combine card type + bank
+    if (bank === 'SANTANDER' && cardType === 'Visa') {
+      return 'Visa Santander';
+    } else if (bank === 'SANTANDER' && cardType === 'Amex') {
+      return 'Amex Santander';
+    } else if (bank === 'GALICIA' && cardType === 'Visa') {
+      return 'Visa Galicia';
+    } else if (bank === 'GALICIA' && cardType === 'Amex') {
+      return 'Amex Galicia';
+    } else if (bank === 'AMEX') {
+      // Generic Amex when bank isn't specified
+      return 'Amex';
+    }
+
+    // Default fallback
+    return 'Unknown';
+  }
+
+  /**
+   * Detect currency from description
+   * Looks for USD indicators in the description
+   */
+  private detectCurrency(description: string): 'ARS' | 'USD' {
+    const lowerDesc = description.toLowerCase();
+
+    // USD indicators
+    const usdIndicators = [
+      'usd',
+      'us$',
+      'dolar',
+      'dollar',
+      '_usd',
+      'nt_rrt', // Common in Galicia for USD transactions
+      'nt_usd',
+    ];
+
+    for (const indicator of usdIndicators) {
+      if (lowerDesc.includes(indicator)) {
+        return 'USD';
+      }
+    }
+
+    return 'ARS';
+  }
+
+  /**
    * Parse Santander PDF statement
    * Real format from Santander Río:
    * "25 Agosto  17 005903 *  SUR GAS                                                   63.000,00"
@@ -148,10 +228,27 @@ export class PdfParserService {
     // Pattern for month header: "25 Agosto" or "Agosto 25"
     const monthPattern = /(\d{2,4})?\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i;
 
-    // Pattern for transaction lines:
+    // Pattern 1: Full format with optional month header
+    // "25 Agosto  17 005903 *  SUR GAS                                                   63.000,00"
     // "           17 146455 *  MERPAGO*TIN                                               18.000,00"
-    // or with month: "25 Agosto  17 005903 *  SUR GAS                                                   63.000,00"
-    const transactionPattern = /^\s*(?:\d{2,4}\s+\w+\s+)?(\d{1,2})\s+\d+\s+[*K]\s+(.+?)\s+([\d.,]+)\s*$/;
+    const fullPattern = /^\s*(?:\d{2,4}\s+\w+\s+)?(\d{1,2})\s+\d+\s+[*K]\s+(.+?)\s+([\d.,]+)\s*$/;
+
+    // Pattern 2: Continuation lines (no date, just comprobante)
+    // " 750064 * PAX ASSISTANCE 99999 C.01/12 18.939,43"
+    // " 110079 * PROVINCIA SEGUROS S 0410600157 111.158,11"
+    // " 928445 TACO BELL- AIPC TERM B USD 10,00"
+    const continuationPattern = /^\s+(\d{6})\s+[*K]?\s*(.+?)\s+([\d.,]+)\s*$/;
+
+    // Pattern 3: Lines without asterisk (some Amex formats)
+    const noAsteriskPattern = /^\s+(\d{6})\s+(.+?)\s+(?:USD\s+)?([\d.,]+)\s*$/;
+
+    // Pattern 4: Foreign currency with USD column (Visa Santander format)
+    // "           01 385681    MARSHALLS 707             CAD      192,04                                       140,88"
+    // "25 Abril   30 534393    MCDONALD'S Ñ23469         CAD       13,32                                         9,78"
+    // Format: [month_name] day comprobante description foreign_currency foreign_amount (spaces) usd_amount
+    const foreignCurrencyPattern = /^\s*(?:\d{2,4}\s+\w+\s+)?(\d{1,2})\s+(\d{6})\s+(.+?)\s+(CAD|USD|EUR|GBP|CHF|JPY|AUD|NZD|BRL|CLP|MXN|COP|PEN|UYU)\s+([\d.,]+)\s+([\d.,]+)\s*$/;
+
+    let lastDay = 1; // Keep track of last parsed day for continuation lines
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -173,15 +270,17 @@ export class PdfParserService {
         }
       }
 
-      // Check for transaction
-      const txnMatch = line.match(transactionPattern);
+      // Try Pattern 4 FIRST: Foreign currency with USD column
+      // This pattern is more specific so we check it before the generic patterns
+      let txnMatch = line.match(foreignCurrencyPattern);
       if (txnMatch) {
         try {
-          const [, dayStr, description, amountStr] = txnMatch;
+          const [, dayStr, , description, foreignCurrency, , usdAmountStr] = txnMatch;
 
           const day = parseInt(dayStr);
+          lastDay = day;
           const date = new Date(currentYear, currentMonth - 1, day);
-          const amount = this.parseAmount(amountStr);
+          const amount = this.parseAmount(usdAmountStr); // Use the USD amount from the last column
           const cleanDescription = description.trim();
           const installments = this.detectInstallments(cleanDescription);
 
@@ -189,12 +288,96 @@ export class PdfParserService {
             date,
             description: cleanDescription,
             amount,
+            currency: 'USD', // Foreign currency transactions are in USD
             installments,
             originalLine: i + 1
           });
         } catch (error) {
-          console.warn(`Skipping invalid line ${i + 1}: ${line}`);
+          console.warn(`[SANTANDER PARSER] Skipping invalid foreign currency line ${i + 1}: ${error}`);
         }
+        continue;
+      }
+
+      // Try Pattern 1: Full format with day
+      txnMatch = line.match(fullPattern);
+      if (txnMatch) {
+        try {
+          const [, dayStr, description, amountStr] = txnMatch;
+
+          const day = parseInt(dayStr);
+          lastDay = day; // Remember this day for continuation lines
+          const date = new Date(currentYear, currentMonth - 1, day);
+          const amount = this.parseAmount(amountStr);
+          const cleanDescription = description.trim();
+          const installments = this.detectInstallments(cleanDescription);
+          const currency = this.detectCurrency(cleanDescription);
+
+          transactions.push({
+            date,
+            description: cleanDescription,
+            amount,
+            currency,
+            installments,
+            originalLine: i + 1
+          });
+        } catch (error) {
+          console.warn(`[SANTANDER PARSER] Skipping invalid line ${i + 1}: ${error}`);
+        }
+        continue;
+      }
+
+      // Try Pattern 2: Continuation pattern (with asterisk)
+      txnMatch = line.match(continuationPattern);
+      if (txnMatch) {
+        try {
+          const [, , description, amountStr] = txnMatch;
+
+          // Use the last parsed day (same day as the header transaction)
+          const date = new Date(currentYear, currentMonth - 1, lastDay);
+          const amount = this.parseAmount(amountStr);
+          const cleanDescription = description.trim();
+          const installments = this.detectInstallments(cleanDescription);
+          const currency = this.detectCurrency(cleanDescription);
+
+          transactions.push({
+            date,
+            description: cleanDescription,
+            amount,
+            currency,
+            installments,
+            originalLine: i + 1
+          });
+        } catch (error) {
+          console.warn(`[SANTANDER PARSER] Skipping invalid line ${i + 1}: ${error}`);
+        }
+        continue;
+      }
+
+      // Try Pattern 3: No asterisk pattern (USD transactions)
+      txnMatch = line.match(noAsteriskPattern);
+      if (txnMatch) {
+        try {
+          const [, , description, amountStr] = txnMatch;
+
+          // Use the last parsed day
+          const date = new Date(currentYear, currentMonth - 1, lastDay);
+          const amount = this.parseAmount(amountStr);
+          const cleanDescription = description.trim();
+          const installments = this.detectInstallments(cleanDescription);
+          const currency = this.detectCurrency(cleanDescription);
+
+          transactions.push({
+            date,
+            description: cleanDescription,
+            amount,
+            currency,
+            installments,
+            originalLine: i + 1
+          });
+        } catch (error) {
+          console.warn(`[SANTANDER PARSER] Skipping invalid line ${i + 1}: ${error}`);
+        }
+        continue;
       }
     }
 
@@ -204,17 +387,32 @@ export class PdfParserService {
   /**
    * Parse Galicia PDF statement
    * Real format from Banco Galicia (works for both Visa and Amex):
-   * Multi-line format (most common):
+   *
+   * Visa Galicia Multi-line format:
    *   "24-08-24*SER BAZARES BERAZATEGUI 12/12"
    *   "003495"
    *   "1.249,16"
-   * Single-line format:
+   *
+   * Visa Galicia Single-line format:
    *   "01-07-25 GOOGLE *GSUITE_i P1covLLC USD 11,52 58768111,52"
+   *
+   * Amex Galicia format (table format):
+   *   "16-09-24 * DEVENTAS SA 07/18 582305 28.096,82"
+   *   "28-02-25 E DIGITALOCEAN.COM NT_RRTUSD 29,18 911301 29,18"
+   *   "02-03-25 * MERPAGO*THEBEST 811300 1.900,00"
    */
   private parseGalicia(text: string): ParsedPdfTransaction[] {
     const transactions: ParsedPdfTransaction[] = [];
     const lines = text.split('\n');
 
+    // Check if this is Amex Galicia format (has "DETALLE DEL CONSUMO" header)
+    const isAmexGalicia = text.includes('DETALLE DEL CONSUMO') || text.includes('AMERICAN EXPRESS');
+
+    if (isAmexGalicia) {
+      return this.parseAmexGalicia(text, lines);
+    }
+
+    // Parse Visa Galicia format (existing logic)
     // Single-line pattern: "DD-MM-YY [*|K|Q] DESCRIPTION AMOUNT REFERENCE"
     const singleLinePattern = /^(\d{2}-\d{2}-\d{2})\s*[*KQ]?\s*(.+?)\s+([\d.,]+)\s+\d+\s*$/;
 
@@ -241,11 +439,13 @@ export class PdfParserService {
           const date = this.parseDateDDMMYY(dateStr);
           const amount = this.parseAmount(amountStr);
           const installments = this.detectInstallments(description);
+          const currency = this.detectCurrency(description);
 
           transactions.push({
             date,
             description: description.trim(),
             amount,
+            currency,
             installments,
             originalLine: i + 1
           });
@@ -269,11 +469,13 @@ export class PdfParserService {
             const date = this.parseDateDDMMYY(dateStr);
             const amount = this.parseAmount(amountMatch[1]);
             const installments = this.detectInstallments(description);
+            const currency = this.detectCurrency(description);
 
             transactions.push({
               date,
               description: description.trim(),
               amount,
+              currency,
               installments,
               originalLine: i + 1
             });
@@ -283,6 +485,201 @@ export class PdfParserService {
           }
         } catch (error) {
           console.warn(`Skipping invalid multi-line starting at ${i + 1}`);
+        }
+      }
+
+      i++;
+    }
+
+    return transactions;
+  }
+
+  /**
+   * Parse Amex Galicia PDF statement
+   * After pdf-parse, the format can be:
+   * 1. Multi-line (3 lines):
+   *    "16-09-24*DEVENTAS SA 07/18"
+   *    "582305"
+   *    "28.096,82"
+   * 2. Single-line concatenated:
+   *    "02-03-25*MERPAGO*THEBEST 8113001.900,00"
+   * 3. Single-line with spaces (USD transactions):
+   *    "28-02-25EDIGITALOCEAN.COM    NT_RRTUSD       29,18 91130129,18"
+   *
+   * Important: For installment transactions, the date shown is the original purchase date.
+   * We calculate the actual payment date based on the installment number:
+   * Example: Original purchase "22-12-24" with installment "04/06"
+   *   - 1/6 = December 2024 (original purchase date)
+   *   - 2/6 = January 2025 (original + 1 month)
+   *   - 3/6 = February 2025 (original + 2 months)
+   *   - 4/6 = March 2025 (original + 3 months) ✅
+   */
+  private parseAmexGalicia(_text: string, lines: string[]): ParsedPdfTransaction[] {
+    const transactions: ParsedPdfTransaction[] = [];
+
+    let inTransactionSection = false;
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i].trim();
+
+      // Start parsing after "DETALLE DEL CONSUMO" header
+      if (line.includes('DETALLE DEL CONSUMO')) {
+        inTransactionSection = true;
+        i++;
+        continue;
+      }
+
+      // Stop parsing at the total line or next page header
+      if (line.includes('Total Consumos de') || line.includes('TARJETA') && line.includes('Total Consumos')) {
+        break;
+      }
+
+      // Skip header row and empty lines
+      if (!inTransactionSection || !line || line.startsWith('FECHA')) {
+        i++;
+        continue;
+      }
+
+      // Pattern 1: Multi-line format (date + asterisk + description, possibly with cuota)
+      const multiLinePattern = /^(\d{2}-\d{2}-\d{2})\s*([*EKQ])(.+)$/;
+      const multiMatch = line.match(multiLinePattern);
+
+      if (multiMatch && i + 2 < lines.length) {
+        const nextLine1 = lines[i + 1].trim();
+        const nextLine2 = lines[i + 2].trim();
+
+        // Check if next two lines are comprobante (6 digits) and amount
+        if (nextLine1.match(/^\d{6}$/) && nextLine2.match(/^[\d.,]+$/)) {
+          try {
+            const [, dateStr, , descriptionPart] = multiMatch;
+            const amountStr = nextLine2;
+
+            let description = descriptionPart.trim();
+            const installments = this.detectInstallments(description);
+
+            // Parse the original purchase date
+            const originalDate = this.parseDateDDMMYY(dateStr);
+
+            // For installment transactions, calculate the actual payment date
+            // by adding (installment_number - 1) months to the original purchase date
+            let date: Date;
+            if (installments) {
+              const [current] = installments.split('/').map(Number);
+              // Calculate months to add: installment 1/6 = 0 months, 2/6 = 1 month, etc.
+              const monthsToAdd = current - 1;
+              date = new Date(originalDate);
+              date.setMonth(date.getMonth() + monthsToAdd);
+            } else {
+              date = originalDate;
+            }
+
+            // Remove installment notation from description
+            if (installments) {
+              description = description.replace(/\s*\d+\/\d+\s*$/, '').trim();
+            }
+
+            const amount = this.parseAmount(amountStr);
+            const currency = this.detectCurrency(description);
+
+            transactions.push({
+              date,
+              description,
+              amount,
+              currency,
+              installments,
+              originalLine: i + 1
+            });
+
+            i += 3; // Skip the 3 lines we just processed
+            continue;
+          } catch (error) {
+            console.warn(`Skipping invalid multi-line starting at ${i + 1}: ${line}`);
+          }
+        }
+      }
+
+      // Pattern 2 & 3: Single-line formats
+      // Comprobante (6 digits) + Amount at the end: "2353054.200,00" or "1960716.119,18"
+      // Amount uses Argentine format: dots for thousands, comma for decimals: "4.200,00" or "867,22"
+      // Format: DD-MM-YY[*|E|K|Q]DESCRIPTION [LONG_REF] COMPROBANTE(6)AMOUNT [USD]
+      //
+      // For foreign currency transactions (USD, CAD, EUR), the format is:
+      // "01-05-25 PRESTO FARE/5GP143MR5V    CAD        3,30 1233242,40"
+      //   where 3,30 is the foreign currency amount, and the last part is comprobante+USD: "123324" + "2,40"
+      //
+      // Amount pattern: digits + optional(. + digits) + , + digits
+      const singleLinePattern = /^(\d{2}-\d{2}-\d{2})\s*([*EKQ]?)(.+?)\s*(\d{6})([\d.]+,\d+)(?:\s+([\d.]+,\d+))?\s*$/;
+      const singleMatch = line.match(singleLinePattern);
+
+      if (singleMatch) {
+        try {
+          const [, dateStr, marker, descriptionPart, , amountPesos, amountUsd] = singleMatch;
+
+          let description = descriptionPart.trim();
+          const installments = this.detectInstallments(description);
+
+          // Parse the original purchase date
+          const originalDate = this.parseDateDDMMYY(dateStr);
+
+          // For installment transactions, calculate the actual payment date
+          // by adding (installment_number - 1) months to the original purchase date
+          let date: Date;
+          if (installments) {
+            const [current] = installments.split('/').map(Number);
+            // Calculate months to add: installment 1/6 = 0 months, 2/6 = 1 month, etc.
+            const monthsToAdd = current - 1;
+            date = new Date(originalDate);
+            date.setMonth(date.getMonth() + monthsToAdd);
+          } else {
+            date = originalDate;
+          }
+
+          // Remove installment notation from description
+          if (installments) {
+            description = description.replace(/\s*\d+\/\d+\s*$/, '').trim();
+          }
+
+          // Determine if this is a foreign currency transaction (USD, CAD, EUR, etc.)
+          // Foreign currency transactions have the currency code in the description
+          // and the amount field contains the USD equivalent (not pesos)
+          // Example: "PRESTO FARE/5GP143MR5V CAD 3,30 1233242,40"
+          //   - Description includes "CAD 3,30" (original foreign currency amount)
+          //   - Amount is "2,40" (USD equivalent in the Dolares column)
+          const foreignCurrencyPattern = /\b(USD|CAD|EUR|GBP|CHF|JPY|AUD|NZD|BRL|CLP|MXN|COP|PEN|UYU)\b/i;
+          const foreignCurrencyMatch = description.match(foreignCurrencyPattern);
+
+          let amount: number;
+          let currency: 'ARS' | 'USD';
+
+          if (foreignCurrencyMatch || marker === 'E') {
+            // This is a foreign currency transaction
+            // The amount is already in USD (from the "Dolares" column)
+            amount = this.parseAmount(amountPesos); // Despite the var name, this is USD for foreign transactions
+            currency = 'USD';
+          } else if (amountUsd) {
+            // If there's a separate USD column value, use it
+            amount = this.parseAmount(amountUsd);
+            currency = 'USD';
+          } else {
+            // Regular ARS transaction
+            amount = this.parseAmount(amountPesos);
+            currency = this.detectCurrency(description);
+          }
+
+          transactions.push({
+            date,
+            description,
+            amount,
+            currency,
+            installments,
+            originalLine: i + 1
+          });
+
+          i++;
+          continue;
+        } catch (error) {
+          console.warn(`Skipping invalid single-line ${i + 1}: ${line}`);
         }
       }
 
@@ -321,11 +718,13 @@ export class PdfParserService {
           const date = this.parseDate(dateStr);
           const amount = this.parseAmount(amountStr);
           const installments = this.detectInstallments(description);
+          const currency = this.detectCurrency(description);
 
           transactions.push({
             date,
             description: description.trim(),
             amount,
+            currency,
             installments,
             originalLine: i + 1
           });
@@ -343,11 +742,13 @@ export class PdfParserService {
           const date = this.parseDateDDMMYY(dateStr);
           const amount = this.parseAmount(amountStr);
           const installments = this.detectInstallments(description);
+          const currency = this.detectCurrency(description);
 
           transactions.push({
             date,
             description: description.trim(),
             amount,
+            currency,
             installments,
             originalLine: i + 1
           });
@@ -371,9 +772,11 @@ export class PdfParserService {
     }
 
     const [, day, month, year] = match;
-    const fullYear = `20${year}`; // Assume 20xx
+    const fullYear = 2000 + parseInt(year); // Assume 20xx
 
-    const date = new Date(`${fullYear}-${month}-${day}`);
+    // Create date using constructor (year, month, day) to avoid timezone issues
+    // Note: month is 0-indexed in JS Date constructor
+    const date = new Date(fullYear, parseInt(month) - 1, parseInt(day));
     if (!isNaN(date.getTime())) {
       return date;
     }
@@ -521,7 +924,7 @@ export class PdfParserService {
     const periodPattern1 = /(?:resumen\s+)?del\s+\d{1,2}\/(\d{1,2})(?:\/\d{2,4})?\s+al\s+\d{1,2}\/(\d{1,2})(?:\/(\d{2,4}))?/i;
     const match1 = text.match(periodPattern1);
     if (match1) {
-      const [, startMonth, endMonth, yearStr] = match1;
+      const [, , endMonth, yearStr] = match1;
       const month = parseInt(endMonth); // Use end month as statement month
       const year = yearStr ? this.parseYear(yearStr) : new Date().getFullYear();
       return { month, year };
