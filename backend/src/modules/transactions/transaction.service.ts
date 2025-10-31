@@ -11,25 +11,11 @@ export class TransactionService {
   }
 
   /**
-   * Serialize a transaction object, ensuring Decimal fields are properly converted to strings
-   * Also includes ARS equivalent for USD transactions
+   * Serialize a transaction object with pre-fetched exchange rates
    */
-  private async serializeTransaction(transaction: any, userId: string) {
-    // Convert Decimal to number first, then to string to avoid precision issues
+  private serializeTransactionWithRate(transaction: any, exchangeRate: number) {
     const amountNumber = Number(transaction.amount);
-
-    // Get exchange rate if currency is not ARS
-    let amountARS = amountNumber;
-    let exchangeRate = 1;
-
-    if (transaction.currency && transaction.currency !== 'ARS') {
-      exchangeRate = await this.exchangeRateService.getExchangeRateForDate(
-        userId,
-        new Date(transaction.date),
-        transaction.currency
-      );
-      amountARS = amountNumber * exchangeRate;
-    }
+    const amountARS = amountNumber * exchangeRate;
 
     return {
       ...transaction,
@@ -40,14 +26,74 @@ export class TransactionService {
   }
 
   /**
-   * Serialize multiple transactions
+   * Batch fetch exchange rates for multiple transactions
+   * Returns a Map of transaction ID to exchange rate
+   */
+  private async batchFetchExchangeRates(transactions: any[], userId: string): Promise<Map<string, number>> {
+    const rateMap = new Map<string, number>();
+
+    // Group transactions by date and currency
+    const rateRequests = new Map<string, Set<Date>>();
+
+    for (const txn of transactions) {
+      if (!txn.currency || txn.currency === 'ARS') {
+        rateMap.set(txn.id, 1);
+      } else {
+        const key = txn.currency;
+        if (!rateRequests.has(key)) {
+          rateRequests.set(key, new Set());
+        }
+        rateRequests.get(key)!.add(new Date(txn.date));
+      }
+    }
+
+    // Fetch rates in batch
+    const ratePromises: Promise<void>[] = [];
+
+    for (const [currency, dates] of rateRequests.entries()) {
+      for (const date of dates) {
+        ratePromises.push(
+          this.exchangeRateService.getExchangeRateForDate(userId, date, currency)
+            .then(rate => {
+              // Store rate for all transactions with this currency and date
+              for (const txn of transactions) {
+                if (txn.currency === currency &&
+                    new Date(txn.date).getTime() === date.getTime()) {
+                  rateMap.set(txn.id, rate);
+                }
+              }
+            })
+        );
+      }
+    }
+
+    await Promise.all(ratePromises);
+    return rateMap;
+  }
+
+  /**
+   * Serialize a single transaction with exchange rate lookup
+   */
+  private async serializeTransaction(transaction: any, userId: string) {
+    const exchangeRate = await this.exchangeRateService.getExchangeRateForDate(
+      userId,
+      new Date(transaction.date),
+      transaction.currency || 'ARS'
+    );
+    return this.serializeTransactionWithRate(transaction, exchangeRate);
+  }
+
+  /**
+   * Serialize multiple transactions with batched exchange rate lookup
    */
   private async serializeTransactions(transactions: any[], userId: string) {
-    return Promise.all(transactions.map(t => this.serializeTransaction(t, userId)));
+    const rateMap = await this.batchFetchExchangeRates(transactions, userId);
+    return transactions.map(t => this.serializeTransactionWithRate(t, rateMap.get(t.id) || 1));
   }
 
   async findAll(userId: string, query: GetTransactionsQuery) {
-    const { page, limit, dateFrom, dateTo, categoryIds, paymentMethodIds, type, formato, source, seriesId } = query;
+    const startTime = Date.now();
+    const { page, limit, dateFrom, dateTo, categoryIds, paymentMethodIds, type, formato, source, seriesId, sortBy, sortOrder } = query;
 
     // Build where clause
     const where: Prisma.TransactionWhereInput = {
@@ -100,13 +146,32 @@ export class TransactionService {
     // Calculate pagination
     const skip = (page - 1) * limit;
 
+    // Build orderBy clause
+    let orderBy: any = { date: 'desc' };
+
+    if (sortBy === 'date') {
+      orderBy = { date: sortOrder };
+    } else if (sortBy === 'type') {
+      orderBy = { type: sortOrder };
+    } else if (sortBy === 'description') {
+      orderBy = { description: sortOrder };
+    } else if (sortBy === 'amount') {
+      orderBy = { amount: sortOrder };
+    } else if (sortBy === 'category') {
+      orderBy = { category: { name: sortOrder } };
+    } else if (sortBy === 'paymentMethod') {
+      orderBy = { paymentMethod: { name: sortOrder } };
+    }
+
     // Execute query with count
+    console.log('[PERF] Starting transaction queries...');
+    const queryStart = Date.now();
     const [transactions, total] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { date: 'desc' },
+        orderBy,
         include: {
           category: {
             select: {
@@ -131,34 +196,35 @@ export class TransactionService {
       }),
       this.prisma.transaction.count({ where }),
     ]);
+    console.log(`[PERF] Transaction query took: ${Date.now() - queryStart}ms`);
 
-    // Calculate totals (for all transactions matching filter, not just current page)
-    // Note: Summary totals use ARS-converted amounts for accurate calculations
+    // Calculate totals (fetch all transactions for summary - optimized with batch exchange rates)
+    console.log('[PERF] Fetching all transactions for summary...');
+    const summaryStart = Date.now();
     const allTransactions = await this.prisma.transaction.findMany({
       where,
       select: {
+        id: true,
         type: true,
         amount: true,
         currency: true,
         date: true,
       },
     });
+    console.log(`[PERF] Fetched ${allTransactions.length} transactions in ${Date.now() - summaryStart}ms`);
+
+    console.log('[PERF] Fetching exchange rates...');
+    const rateStart = Date.now();
+    const rateMap = await this.batchFetchExchangeRates(allTransactions, userId);
+    console.log(`[PERF] Exchange rates took: ${Date.now() - rateStart}ms`);
 
     let totalIncomeARS = 0;
     let totalExpenseARS = 0;
 
     for (const txn of allTransactions) {
       const amount = Number(txn.amount);
-      let amountARS = amount;
-
-      if (txn.currency && txn.currency !== 'ARS') {
-        const rate = await this.exchangeRateService.getExchangeRateForDate(
-          userId,
-          new Date(txn.date),
-          txn.currency
-        );
-        amountARS = amount * rate;
-      }
+      const rate = rateMap.get(txn.id) || 1;
+      const amountARS = amount * rate;
 
       if (txn.type === 'INCOME') {
         totalIncomeARS += amountARS;
@@ -169,8 +235,14 @@ export class TransactionService {
 
     const balance = totalIncomeARS - totalExpenseARS;
 
+    console.log('[PERF] Serializing page transactions...');
+    const serializeStart = Date.now();
+    const serialized = await this.serializeTransactions(transactions, userId);
+    console.log(`[PERF] Serialization took: ${Date.now() - serializeStart}ms`);
+    console.log(`[PERF] Total request time: ${Date.now() - startTime}ms\n`);
+
     return {
-      data: await this.serializeTransactions(transactions, userId),
+      data: serialized,
       pagination: {
         page,
         limit,

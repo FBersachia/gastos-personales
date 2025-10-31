@@ -93,6 +93,8 @@ export const getTransactionsQuerySchema = z.object({
   formato: z.enum(['cuotas', 'contado', 'ALL']).optional().default('ALL'),
   source: z.enum(['csv', 'pdf', 'manual', 'ALL']).optional().default('ALL'),
   seriesId: z.string().uuid().optional(),
+  sortBy: z.enum(['date', 'type', 'description', 'amount', 'category', 'paymentMethod']).optional().default('date'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });
 
 export const getMatchHistoryQuerySchema = z.object({

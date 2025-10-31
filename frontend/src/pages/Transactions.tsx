@@ -33,7 +33,7 @@ export default function Transactions() {
   const [error, setError] = useState<string | null>(null);
 
   // Filters
-  const [filters, setFilters] = useState<TransactionFilters>({ page: 1, limit: 25, type: 'ALL' });
+  const [filters, setFilters] = useState<TransactionFilters>({ page: 1, limit: 25, type: 'ALL', sortBy: 'date', sortOrder: 'desc' });
   const [showFilters, setShowFilters] = useState(false);
 
   // Modal state
@@ -192,7 +192,31 @@ export default function Transactions() {
   };
 
   const clearFilters = () => {
-    setFilters({ page: 1, limit: 25, type: 'ALL' });
+    setFilters({ page: 1, limit: 25, type: 'ALL', sortBy: 'date', sortOrder: 'desc' });
+  };
+
+  const handleSort = (column: 'date' | 'type' | 'description' | 'amount' | 'category' | 'paymentMethod') => {
+    const newSortOrder = filters.sortBy === column && filters.sortOrder === 'asc' ? 'desc' : 'asc';
+    setFilters({ ...filters, sortBy: column, sortOrder: newSortOrder, page: 1 });
+  };
+
+  const getSortIcon = (column: string) => {
+    if (filters.sortBy !== column) {
+      return (
+        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    return filters.sortOrder === 'asc' ? (
+      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+      </svg>
+    ) : (
+      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    );
   };
 
   const formatCurrency = (amount: string) => {
@@ -213,7 +237,7 @@ export default function Transactions() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="w-full p-6">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
@@ -377,12 +401,60 @@ export default function Transactions() {
             <table className="w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Payment</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase min-w-[150px]">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <button
+                      onClick={() => handleSort('date')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition"
+                    >
+                      Date
+                      {getSortIcon('date')}
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">
+                    <button
+                      onClick={() => handleSort('type')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition"
+                    >
+                      Type
+                      {getSortIcon('type')}
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <button
+                      onClick={() => handleSort('description')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition"
+                    >
+                      Description
+                      {getSortIcon('description')}
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">
+                    <button
+                      onClick={() => handleSort('category')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition"
+                    >
+                      Category
+                      {getSortIcon('category')}
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">
+                    <button
+                      onClick={() => handleSort('paymentMethod')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition"
+                    >
+                      Payment
+                      {getSortIcon('paymentMethod')}
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase min-w-[150px]">
+                    <button
+                      onClick={() => handleSort('amount')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition ml-auto"
+                    >
+                      Amount
+                      {getSortIcon('amount')}
+                    </button>
+                  </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Installments</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Formato</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Source</th>

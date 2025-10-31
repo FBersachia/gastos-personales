@@ -28,15 +28,18 @@ export class PdfParserService {
    */
   async parse(fileBuffer: Buffer): Promise<PdfParseResult> {
     try {
+      console.log('[PDF PARSER] Starting PDF parse, buffer size:', fileBuffer.length);
       // Import pdf-parse (CommonJS module) - tsx supports require
       const pdfParse = require('pdf-parse');
 
       // Extract text from PDF
       const pdfData = await pdfParse(fileBuffer);
       const text = pdfData.text;
+      console.log('[PDF PARSER] Extracted text, length:', text.length);
 
       // Detect bank type
       const bank = this.detectBank(text);
+      console.log('[PDF PARSER] Detected bank:', bank);
 
       // Detect payment method (e.g., "Visa Galicia", "Amex Santander")
       const detectedPaymentMethod = this.detectPaymentMethod(text, bank);
@@ -243,16 +246,19 @@ export class PdfParserService {
     const noAsteriskPattern = /^\s+(\d{6})\s+(.+?)\s+(?:USD\s+)?([\d.,]+)\s*$/;
 
     // Pattern 4: Foreign currency with USD column (Visa Santander format)
-    // "           01 385681    MARSHALLS 707             CAD      192,04                                       140,88"
-    // "25 Abril   30 534393    MCDONALD'S Ñ23469         CAD       13,32                                         9,78"
-    // Format: [month_name] day comprobante description foreign_currency foreign_amount (spaces) usd_amount
-    const foreignCurrencyPattern = /^\s*(?:\d{2,4}\s+\w+\s+)?(\d{1,2})\s+(\d{6})\s+(.+?)\s+(CAD|USD|EUR|GBP|CHF|JPY|AUD|NZD|BRL|CLP|MXN|COP|PEN|UYU)\s+([\d.,]+)\s+([\d.,]+)\s*$/;
+    // "              860453    ROGERS PEARSON T3         CAD       28,25                                        20,68          "
+    // "25 Abril   25 370216    TICKETMASTER CANADA HOST  CAD      158,65                                       116,16          "
+    // Format: [optional: day month_name] [optional: day] comprobante description currency foreign_amount (40+ spaces) usd_amount
+    // The USD amount is in the far right column, separated by many spaces
+    const foreignCurrencyPattern = /^\s*(?:(\d{1,2})\s+\w+\s+)?(\d{1,2})?\s*(\d{6})\s+(.+?)\s+(CAD|USD|EUR|GBP|CHF|JPY|AUD|NZD|BRL|CLP|MXN|COP|PEN|UYU)\s+([\d.,]+)\s{20,}([\d.,]+)\s*$/;
 
     let lastDay = 1; // Keep track of last parsed day for continuation lines
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim()) continue;
+
+      let txnMatch; // Declare variable for pattern matching
 
       // Check for month header
       const monthMatch = line.match(monthPattern);
@@ -272,13 +278,23 @@ export class PdfParserService {
 
       // Try Pattern 4 FIRST: Foreign currency with USD column
       // This pattern is more specific so we check it before the generic patterns
-      let txnMatch = line.match(foreignCurrencyPattern);
+      txnMatch = line.match(foreignCurrencyPattern);
       if (txnMatch) {
         try {
-          const [, dayStr, , description, foreignCurrency, , usdAmountStr] = txnMatch;
+          // Groups: [full, headerDay?, day?, comprobante, description, currency, foreignAmount, usdAmount]
+          const headerDay = txnMatch[1]; // Day from header like "25 Abril"
+          const dayStr = txnMatch[2]; // Day number
+          const comprobante = txnMatch[3];
+          const description = txnMatch[4];
+          const foreignCurrency = txnMatch[5];
+          const foreignAmount = txnMatch[6];
+          const usdAmountStr = txnMatch[7];
 
-          const day = parseInt(dayStr);
-          lastDay = day;
+          // Use day from header if present, otherwise day from line, otherwise last day
+          const day = headerDay ? parseInt(headerDay) : (dayStr ? parseInt(dayStr) : lastDay);
+          if (dayStr) lastDay = parseInt(dayStr);
+          if (headerDay) lastDay = parseInt(headerDay);
+
           const date = new Date(currentYear, currentMonth - 1, day);
           const amount = this.parseAmount(usdAmountStr); // Use the USD amount from the last column
           const cleanDescription = description.trim();
@@ -402,19 +418,33 @@ export class PdfParserService {
    *   "02-03-25 * MERPAGO*THEBEST 811300 1.900,00"
    */
   private parseGalicia(text: string): ParsedPdfTransaction[] {
+    console.log('[PARSE GALICIA] Starting Galicia parse, text length:', text.length);
     const transactions: ParsedPdfTransaction[] = [];
     const lines = text.split('\n');
+    console.log('[PARSE GALICIA] Total lines:', lines.length);
 
-    // Check if this is Amex Galicia format (has "DETALLE DEL CONSUMO" header)
-    const isAmexGalicia = text.includes('DETALLE DEL CONSUMO') || text.includes('AMERICAN EXPRESS');
+    // Check if this is Amex Galicia format
+    // Need to be more specific: both Visa and Amex Galicia PDFs contain "DETALLE DEL CONSUMO"
+    // Amex has additional markers like "AMERICAN EXPRESS" or "CUIT TARJETA: 30-64140793-9"
+    const hasAmexMarkers = text.includes('AMERICAN EXPRESS') || text.includes('30-64140793-9');
+    const isAmexGalicia = text.includes('DETALLE DEL CONSUMO') && hasAmexMarkers;
+    console.log('[PARSE GALICIA] Is Amex format?', isAmexGalicia, '(hasAmexMarkers:', hasAmexMarkers, ')');
 
     if (isAmexGalicia) {
       return this.parseAmexGalicia(text, lines);
     }
 
     // Parse Visa Galicia format (existing logic)
-    // Single-line pattern: "DD-MM-YY [*|K|Q] DESCRIPTION AMOUNT REFERENCE"
-    const singleLinePattern = /^(\d{2}-\d{2}-\d{2})\s*[*KQ]?\s*(.+?)\s+([\d.,]+)\s+\d+\s*$/;
+    // Single-line pattern with spaces: "DD-MM-YY [*|K|Q] DESCRIPTION REFERENCE AMOUNT"
+    // Example: "18-03-25 * MERPAGO*NIKEARGENTINA 01/06 061987 24.833,00"
+    const singleLinePatternSpaced = /^(\d{2}-\d{2}-\d{2})\s*[*KQ]?\s*(.+?)\s+(\d+)\s+([\d.,]+)\s*$/;
+
+    // Single-line pattern concatenated: "DD-MM-YY[*|K|Q]DESCRIPTION COMPROBANTE(6 digits)AMOUNT"
+    // Example: "18-03-25*MERPAGO*NIKEARGENTINA 01/0606198724.833,00"
+    // where "01/06" is installments, "061987" is comprobante, "24.833,00" is amount
+    // Amount format: 1-3 digits, then optional .NNN groups, then ,NN
+    // Strategy: Match amount from the end, then grab exactly 6 digits before it as comprobante
+    const singleLinePatternConcatenated = /^(\d{2}-\d{2}-\d{2})\s*[*KQ]?\s*(.+)(\d{6})(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/;
 
     // Multi-line first line pattern: "DD-MM-YY[*|K]DESCRIPTION n/n"
     const multiLineStartPattern = /^(\d{2}-\d{2}-\d{2})\s*[*K](.+)$/;
@@ -431,15 +461,150 @@ export class PdfParserService {
         continue;
       }
 
-      // Try single-line format first
-      const singleMatch = line.match(singleLinePattern);
-      if (singleMatch) {
+      // Debug: Log lines containing NIKEARGENTINA
+      if (line.includes('NIKEARGENTINA')) {
+        console.log(`\n[PARSER DEBUG] Found NIKEARGENTINA at line ${i+1}:`);
+        console.log(`  Raw line: "${line}"`);
+        console.log(`  Length: ${line.length}`);
+      }
+
+      // Try concatenated format with special handling for installments
+      // Format: "18-03-25*MERPAGO*NIKEARGENTINA 01/0606198724.833,00"
+      // Problem: The string contains DESCRIPTION + INSTALLMENTS + COMPROBANTE + AMOUNT all concatenated
+      // where installments is \d+/\d+ but the second \d+ might merge with comprobante digits
+      //
+      // Strategy: Look for a pattern where we have:
+      // 1. Date + marker
+      // 2. Description ending with possible installment pattern like "text \d+/\d+"
+      // 3. Then exactly 6 digits (comprobante)
+      // 4. Then valid amount
+      //
+      // Key insight: After finding a valid amount at the end and 6-digit comprobante before it,
+      // check if the description ends with a partial installment pattern and try to complete it
+      // New approach: Parse from the start to find description end point
+      // Format: DD-MM-YY[*|K|Q]DESCRIPTION[PARTIAL_INST]DIGITS_AMOUNT
+      const dateMarkerMatch = line.match(/^(\d{2}-\d{2}-\d{2})\s*([*KQ]?)\s*/);
+      if (dateMarkerMatch) {
         try {
-          const [, dateStr, description, amountStr] = singleMatch;
+          const dateStr = dateMarkerMatch[1];
+          const afterDateMarker = line.substring(dateMarkerMatch[0].length);
+
+          // Now we have: "DESCRIPTION[PARTIAL_INST]DIGITS_AMOUNT"
+          // We need to find where DESCRIPTION ends and DIGITS_AMOUNT begins
+          // Strategy: DIGITS_AMOUNT is always: 6-8 digits + valid amount
+          // Match them together to avoid greedy amount matching
+
+          // Match 6-8 digits followed by amount as a single unit
+          // Strategy: Check if potential description ends with partial installment
+          // If yes, use 7-8 digits; otherwise use 6 digits
+
+          // First, try to find any valid digit+amount combination
+          const tentativeMatch6 = afterDateMarker.match(/(\d{6})(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/);
+          const tentativeMatch78 = afterDateMarker.match(/(\d{7,8})(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/);
+
+          let digitsAmountMatch = null;
+
+          // If we have a 7-8 digit match, check if the description has partial installments
+          if (tentativeMatch78) {
+            const desc78 = afterDateMarker.substring(0, afterDateMarker.lastIndexOf(tentativeMatch78[0])).trim();
+            console.log(`[DEBUG] Line ${i+1}: Checking 7-8 digit match`);
+            console.log(`[DEBUG]   afterDateMarker: "${afterDateMarker}"`);
+            console.log(`[DEBUG]   tentativeMatch78: digits="${tentativeMatch78[1]}", amount="${tentativeMatch78[2]}"`);
+            console.log(`[DEBUG]   desc78: "${desc78}"`);
+            console.log(`[DEBUG]   Has partial installment: ${/\d+\/\d*$/.test(desc78)}`);
+            if (/\d+\/\d*$/.test(desc78)) {
+              // Description ends with installment pattern - use 7-8 digit match
+              digitsAmountMatch = tentativeMatch78;
+              console.log(`[DEBUG]   Using 7-8 digit match`);
+            }
+          }
+
+          // Fall back to 6-digit match if we didn't use 7-8
+          if (!digitsAmountMatch && tentativeMatch6) {
+            console.log(`[DEBUG] Line ${i+1}: Using 6 digit match`);
+            console.log(`[DEBUG]   tentativeMatch6: digits="${tentativeMatch6[1]}", amount="${tentativeMatch6[2]}"`);
+            digitsAmountMatch = tentativeMatch6;
+          }
+
+          if (digitsAmountMatch) {
+            const candidateDigits = digitsAmountMatch[1];
+            const amountStr = digitsAmountMatch[2];
+            const description = afterDateMarker.substring(0, afterDateMarker.lastIndexOf(digitsAmountMatch[0])).trim();
+            console.log(`[DEBUG] Line ${i+1}: Final match - digits="${candidateDigits}", amount="${amountStr}", desc="${description}"`);
+
+            // Now parse the components
+            const date = this.parseDateDDMMYY(dateStr);
+            const amount = this.parseAmount(amountStr);
+
+            let cleanDescription = description;
+            let installments = null;
+            let comprobante = candidateDigits;
+
+            // Handle installments with borrowing logic
+            const partialInstallmentMatch = cleanDescription.match(/(\d+)\/(\d*)$/);
+
+            if (partialInstallmentMatch) {
+              const [fullMatch, first, second] = partialInstallmentMatch;
+
+              if (second.length < 2) {
+                // Incomplete installment - borrow from candidate digits
+                const needed = 2 - second.length;
+                const borrowed = candidateDigits.substring(0, needed);
+                const completedInstallment = `${first}/${second}${borrowed}`;
+
+                if (/^\d{1,2}\/\d{1,2}$/.test(completedInstallment)) {
+                  installments = completedInstallment;
+                  cleanDescription = cleanDescription.substring(0, cleanDescription.length - fullMatch.length).trim();
+                  // Comprobante is the 6 digits after borrowing
+                  comprobante = candidateDigits.substring(needed, needed + 6);
+                }
+              } else {
+                // Complete installment in description
+                installments = fullMatch;
+                cleanDescription = cleanDescription.substring(0, cleanDescription.length - fullMatch.length).trim();
+                // The last 2 digits of installment are merged with comprobante
+                const instLastDigits = fullMatch.match(/(\d{2})$/)[1];
+                if (candidateDigits.startsWith(instLastDigits)) {
+                  comprobante = candidateDigits.substring(2, 8);
+                } else {
+                  comprobante = candidateDigits.substring(0, 6);
+                }
+              }
+            } else {
+              // No installments - take last 6 digits as comprobante
+              comprobante = candidateDigits.substring(candidateDigits.length - 6);
+            }
+
+            const currency = this.detectCurrency(cleanDescription);
+
+            transactions.push({
+              date,
+              description: cleanDescription,
+              amount,
+              currency,
+              installments,
+              originalLine: i + 1
+            });
+
+            i++;
+            continue;
+          }
+        } catch (error) {
+          console.warn(`Skipping invalid concatenated line ${i + 1}: ${line}`);
+        }
+      }
+
+      // Try single-line format with spaces
+      const spacedMatch = line.match(singleLinePatternSpaced);
+      if (spacedMatch) {
+        try {
+          const [, dateStr, description, reference, amountStr] = spacedMatch;
           const date = this.parseDateDDMMYY(dateStr);
           const amount = this.parseAmount(amountStr);
           const installments = this.detectInstallments(description);
           const currency = this.detectCurrency(description);
+
+          console.log(`[SPACED FORMAT] Line ${i+1}: date="${dateStr}", desc="${description}", ref="${reference}", amt="${amountStr}", parsed=${amount}`);
 
           transactions.push({
             date,
@@ -608,8 +773,13 @@ export class PdfParserService {
       // "01-05-25 PRESTO FARE/5GP143MR5V    CAD        3,30 1233242,40"
       //   where 3,30 is the foreign currency amount, and the last part is comprobante+USD: "123324" + "2,40"
       //
-      // Amount pattern: digits + optional(. + digits) + , + digits
-      const singleLinePattern = /^(\d{2}-\d{2}-\d{2})\s*([*EKQ]?)(.+?)\s*(\d{6})([\d.]+,\d+)(?:\s+([\d.]+,\d+))?\s*$/;
+      // IMPORTANT: Sometimes the comprobante and amount are concatenated without space
+      // Example: "06-09-25*FRAVEGA 01/06630489133.333,35" where "630489" is comprobante and "133.333,35" is amount
+      //
+      // Amount pattern: 1-3 digits, then optionally (.NNN groups), then ,NN
+      // Argentine format: 4.200,00 or 15.000,50 or 133.333,35 or 867,22
+      // The comprobante is exactly 6 digits immediately before the amount
+      const singleLinePattern = /^(\d{2}-\d{2}-\d{2})\s*([*EKQ]?)(.+?)(\d{6})(\d{1,3}(?:\.\d{3})*,\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}))?\s*$/;
       const singleMatch = line.match(singleLinePattern);
 
       if (singleMatch) {

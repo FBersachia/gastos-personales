@@ -1291,4 +1291,142 @@ After recreating the file with identical content, the server started successfull
 
 ---
 
+---
+
+### Error: Visa Galicia PDF parser reading wrong amounts ($724,833 instead of $24,833)
+
+**Description:** When importing Visa Galicia PDF statements, transaction amounts were being parsed incorrectly, showing values 10-30x higher than the actual amounts. For example, the NIKEARGENTINA transaction showed as $724,833.00 when it should have been $24,833.00.
+
+**Transaction Example:**
+```
+Line from PDF: 18-03-25*MERPAGO*NIKEARGENTINA 01/0606198724.833,00
+Expected: Amount = $24,833.00, Installments = "01/06", Comprobante = "061987"
+Actual (before fix): Amount = $724,833.00
+```
+
+**Root Cause:**
+The Visa Galicia PDF was being incorrectly detected as "Amex Galicia" format, causing it to be processed by the wrong parser:
+
+1. **Incorrect format detection:** Both Visa Galicia and Amex Galicia PDFs contain the text "DETALLE DEL CONSUMO"
+2. **Overly broad Amex detection:**
+   ```javascript
+   // Before (incorrect)
+   const isAmexGalicia = text.includes('DETALLE DEL CONSUMO') || text.includes('AMERICAN EXPRESS');
+   ```
+   This caused ALL PDFs with "DETALLE DEL CONSUMO" to be routed to the Amex parser, including Visa PDFs.
+
+3. **Wrong parser used:** The Amex parser doesn't have the specialized logic for Visa's concatenated transaction format with installment borrowing
+4. **Amount parsing failure:** Without the proper concatenated format parser, the amount regex was matching incorrectly, capturing extra digits from the comprobante field
+
+**Debug Process:**
+1. Added logging to see which parser was being used:
+   ```
+   [PARSE GALICIA] Is Amex format? true  ← Should have been false!
+   ```
+
+2. Extracted actual line from PDF using `test-pdf-extract.js`:
+   ```
+   Raw line: "18-03-25*MERPAGO*NIKEARGENTINA 01/0606198724.833,00"
+   Format: Concatenated (no spaces between fields)
+   ```
+
+3. Discovered the line was concatenated format requiring special parsing:
+   - Description: "MERPAGO*NIKEARGENTINA"
+   - Partial installment: "01/0" (needs to borrow "6" to complete "01/06")
+   - Merged digits: "06061987" (installment completion digit + comprobante)
+   - Amount: "24.833,00"
+
+**Solution:**
+Made Amex detection more specific by requiring BOTH "DETALLE DEL CONSUMO" AND Amex-specific markers:
+
+```javascript
+// After (correct)
+const hasAmexMarkers = text.includes('AMERICAN EXPRESS') || text.includes('30-64140793-9');
+const isAmexGalicia = text.includes('DETALLE DEL CONSUMO') && hasAmexMarkers;
+```
+
+**Amex-specific markers:**
+- `"AMERICAN EXPRESS"` - Brand name appearing in Amex PDFs
+- `"30-64140793-9"` - Amex Argentina's CUIT number
+
+**How the Visa Parser Works:**
+The Visa Galicia concatenated format parser (which was already correctly implemented but wasn't being used):
+
+1. **Combined digits+amount pattern:** Matches 6-8 digits + amount together to prevent greedy regex from capturing wrong digits
+   ```javascript
+   const tentativeMatch78 = afterDateMarker.match(/(\d{7,8})(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/);
+   ```
+
+2. **Installment borrowing logic:** Detects partial installments (e.g., "01/0") and borrows missing digits from the comprobante
+   ```
+   Input: "01/0606198724.833,00"
+   Partial: "01/0" (needs 1 digit)
+   Borrows: "6" from "06061987"
+   Result: Installments = "01/06", Comprobante = "061987"
+   ```
+
+3. **Amount extraction:** After borrowing, correctly identifies the amount
+   ```
+   Digits: "06061987" → Borrow "6", Keep "061987"
+   Amount: "24.833,00" → 24,833.00
+   ```
+
+**Symptoms:**
+- Amounts displayed 10-30x higher than expected
+- Example: $24,833 shown as $724,833
+- Only affected Visa Galicia PDF imports
+- Amex Galicia and Santander PDFs worked correctly
+- Standalone tests passed but real imports failed
+
+**Verification:**
+After the fix, the same PDF import now shows:
+```
+[PARSE GALICIA] Is Amex format? false (hasAmexMarkers: false)
+Amount: $24,833.00 ✓
+Installments: "01/06" ✓
+Comprobante: "061987" ✓
+```
+
+**Files Changed:**
+- `backend/src/modules/import/pdf-parser.service.ts:426-431` - Made Amex detection require both "DETALLE DEL CONSUMO" AND Amex-specific markers
+
+**Test Cases:**
+The existing Visa Galicia concatenated parser already correctly handled:
+```javascript
+// Test 1: NIKEARGENTINA - Partial installment borrowing
+'18-03-25*MERPAGO*NIKEARGENTINA 01/0606198724.833,00'
+→ Amount: 24,833 ✓
+
+// Test 2: EMOVA SUBTE - No installments
+'19-03-25*EMOVA SUBTE 004243832,00'
+→ Amount: 832 ✓
+
+// Test 3: UBER - Complete installments
+'05-03-25*UBER *HELP.UBER.COM 02/1212304015.899,00'
+→ Amount: 15,899 ✓
+
+// Test 4: FRAVEGA - Partial installment borrowing
+'06-09-25*FRAVEGA 01/06630489133.333,35'
+→ Amount: 133,333.35 ✓
+```
+
+**How to Prevent:**
+- Use specific, mutually exclusive format detection markers
+- Test format detection with actual PDF samples from each bank
+- Add debug logging to show which parser is being selected
+- Verify parser selection before implementing parsing logic
+- Document shared text patterns between different bank formats
+
+**Related Issues:**
+- PDF format detection logic
+- Regex greedy matching in amount parsing
+- Multi-bank PDF parser architecture
+
+**Key Lesson:**
+When multiple PDF formats share common text patterns, detection logic must use format-specific markers to avoid routing to the wrong parser. A single shared string like "DETALLE DEL CONSUMO" is not sufficient for reliable format detection.
+
+**Fixed:** 2025-10-30
+
+---
+
 **Last Updated:** 2025-10-30

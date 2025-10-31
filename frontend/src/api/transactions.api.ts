@@ -60,6 +60,8 @@ export interface TransactionFilters {
   formato?: 'cuotas' | 'contado' | 'ALL';
   source?: 'csv' | 'pdf' | 'manual' | 'ALL';
   seriesId?: string;
+  sortBy?: 'date' | 'type' | 'description' | 'amount' | 'category' | 'paymentMethod';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface CreateTransactionData {
@@ -90,6 +92,8 @@ export const getTransactions = async (
     if (filters.formato) params.append('formato', filters.formato);
     if (filters.source) params.append('source', filters.source);
     if (filters.seriesId) params.append('seriesId', filters.seriesId);
+    if (filters.sortBy) params.append('sortBy', filters.sortBy);
+    if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
   }
 
   const response = await apiClient.get<ApiResponse & TransactionsResponse>(
