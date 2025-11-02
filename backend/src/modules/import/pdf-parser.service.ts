@@ -295,10 +295,22 @@ export class PdfParserService {
           if (dayStr) lastDay = parseInt(dayStr);
           if (headerDay) lastDay = parseInt(headerDay);
 
-          const date = new Date(currentYear, currentMonth - 1, day);
           const amount = this.parseAmount(usdAmountStr); // Use the USD amount from the last column
           const cleanDescription = description.trim();
           const installments = this.detectInstallments(cleanDescription);
+
+          // Calculate date based on installment number
+          // For installments, the date shown is the statement month, not the original purchase date
+          // We need to use the statement month + installment offset
+          let date = new Date(currentYear, currentMonth - 1, day);
+          if (installments) {
+            // Extract current installment number (e.g., "02" from "02/06")
+            const [current] = installments.split('/').map(Number);
+            // For statement-based installments, installment 1 = current month, 2 = next month, etc.
+            // So we add (current - 1) months to the statement date
+            const monthsToAdd = current - 1;
+            date = new Date(currentYear, currentMonth - 1 + monthsToAdd, day);
+          }
 
           transactions.push({
             date,
@@ -322,11 +334,18 @@ export class PdfParserService {
 
           const day = parseInt(dayStr);
           lastDay = day; // Remember this day for continuation lines
-          const date = new Date(currentYear, currentMonth - 1, day);
           const amount = this.parseAmount(amountStr);
           const cleanDescription = description.trim();
           const installments = this.detectInstallments(cleanDescription);
           const currency = this.detectCurrency(cleanDescription);
+
+          // Calculate date based on installment number
+          let date = new Date(currentYear, currentMonth - 1, day);
+          if (installments) {
+            const [current] = installments.split('/').map(Number);
+            const monthsToAdd = current - 1;
+            date = new Date(currentYear, currentMonth - 1 + monthsToAdd, day);
+          }
 
           transactions.push({
             date,
@@ -348,12 +367,18 @@ export class PdfParserService {
         try {
           const [, , description, amountStr] = txnMatch;
 
-          // Use the last parsed day (same day as the header transaction)
-          const date = new Date(currentYear, currentMonth - 1, lastDay);
           const amount = this.parseAmount(amountStr);
           const cleanDescription = description.trim();
           const installments = this.detectInstallments(cleanDescription);
           const currency = this.detectCurrency(cleanDescription);
+
+          // Calculate date based on installment number
+          let date = new Date(currentYear, currentMonth - 1, lastDay);
+          if (installments) {
+            const [current] = installments.split('/').map(Number);
+            const monthsToAdd = current - 1;
+            date = new Date(currentYear, currentMonth - 1 + monthsToAdd, lastDay);
+          }
 
           transactions.push({
             date,
@@ -375,12 +400,18 @@ export class PdfParserService {
         try {
           const [, , description, amountStr] = txnMatch;
 
-          // Use the last parsed day
-          const date = new Date(currentYear, currentMonth - 1, lastDay);
           const amount = this.parseAmount(amountStr);
           const cleanDescription = description.trim();
           const installments = this.detectInstallments(cleanDescription);
           const currency = this.detectCurrency(cleanDescription);
+
+          // Calculate date based on installment number
+          let date = new Date(currentYear, currentMonth - 1, lastDay);
+          if (installments) {
+            const [current] = installments.split('/').map(Number);
+            const monthsToAdd = current - 1;
+            date = new Date(currentYear, currentMonth - 1 + monthsToAdd, lastDay);
+          }
 
           transactions.push({
             date,
@@ -533,7 +564,7 @@ export class PdfParserService {
             console.log(`[DEBUG] Line ${i+1}: Final match - digits="${candidateDigits}", amount="${amountStr}", desc="${description}"`);
 
             // Now parse the components
-            const date = this.parseDateDDMMYY(dateStr);
+            const originalDate = this.parseDateDDMMYY(dateStr);
             const amount = this.parseAmount(amountStr);
 
             let cleanDescription = description;
@@ -577,6 +608,15 @@ export class PdfParserService {
 
             const currency = this.detectCurrency(cleanDescription);
 
+            // Calculate date based on installment number
+            let date = originalDate;
+            if (installments) {
+              const [current] = installments.split('/').map(Number);
+              const monthsToAdd = current - 1;
+              date = new Date(originalDate);
+              date.setMonth(date.getMonth() + monthsToAdd);
+            }
+
             transactions.push({
               date,
               description: cleanDescription,
@@ -599,12 +639,21 @@ export class PdfParserService {
       if (spacedMatch) {
         try {
           const [, dateStr, description, reference, amountStr] = spacedMatch;
-          const date = this.parseDateDDMMYY(dateStr);
+          const originalDate = this.parseDateDDMMYY(dateStr);
           const amount = this.parseAmount(amountStr);
           const installments = this.detectInstallments(description);
           const currency = this.detectCurrency(description);
 
           console.log(`[SPACED FORMAT] Line ${i+1}: date="${dateStr}", desc="${description}", ref="${reference}", amt="${amountStr}", parsed=${amount}`);
+
+          // Calculate date based on installment number
+          let date = originalDate;
+          if (installments) {
+            const [current] = installments.split('/').map(Number);
+            const monthsToAdd = current - 1;
+            date = new Date(originalDate);
+            date.setMonth(date.getMonth() + monthsToAdd);
+          }
 
           transactions.push({
             date,
@@ -631,10 +680,19 @@ export class PdfParserService {
 
           const amountMatch = amountLine.match(amountPattern);
           if (amountMatch && referenceLine.match(/^\d+$/)) {
-            const date = this.parseDateDDMMYY(dateStr);
+            const originalDate = this.parseDateDDMMYY(dateStr);
             const amount = this.parseAmount(amountMatch[1]);
             const installments = this.detectInstallments(description);
             const currency = this.detectCurrency(description);
+
+            // Calculate date based on installment number
+            let date = originalDate;
+            if (installments) {
+              const [current] = installments.split('/').map(Number);
+              const monthsToAdd = current - 1;
+              date = new Date(originalDate);
+              date.setMonth(date.getMonth() + monthsToAdd);
+            }
 
             transactions.push({
               date,
@@ -885,10 +943,19 @@ export class PdfParserService {
       if (match) {
         try {
           const [, dateStr, description, amountStr] = match;
-          const date = this.parseDate(dateStr);
+          const originalDate = this.parseDate(dateStr);
           const amount = this.parseAmount(amountStr);
           const installments = this.detectInstallments(description);
           const currency = this.detectCurrency(description);
+
+          // Calculate date based on installment number
+          let date = originalDate;
+          if (installments) {
+            const [current] = installments.split('/').map(Number);
+            const monthsToAdd = current - 1;
+            date = new Date(originalDate);
+            date.setMonth(date.getMonth() + monthsToAdd);
+          }
 
           transactions.push({
             date,
@@ -909,10 +976,19 @@ export class PdfParserService {
       if (match) {
         try {
           const [, dateStr, description, amountStr] = match;
-          const date = this.parseDateDDMMYY(dateStr);
+          const originalDate = this.parseDateDDMMYY(dateStr);
           const amount = this.parseAmount(amountStr);
           const installments = this.detectInstallments(description);
           const currency = this.detectCurrency(description);
+
+          // Calculate date based on installment number
+          let date = originalDate;
+          if (installments) {
+            const [current] = installments.split('/').map(Number);
+            const monthsToAdd = current - 1;
+            date = new Date(originalDate);
+            date.setMonth(date.getMonth() + monthsToAdd);
+          }
 
           transactions.push({
             date,

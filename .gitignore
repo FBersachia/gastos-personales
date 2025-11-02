@@ -52,3 +52,12 @@ postgres_data/
 temp/
 tmp/
 temp_*.json
+
+# Test files
+test-*.js
+test-*.ts
+*.test.local.js
+*.test.local.ts
+
+# Claude settings
+.claude/settings.local.json

@@ -28,9 +28,18 @@ export default function Installments() {
     }
   };
 
-  // Group installments by description
+  // Helper function to extract base description (remove installment suffix like C.01/06, .01/06, etc.)
+  const getBaseDescription = (description: string): string => {
+    // Match patterns like: C.01/06, .01/06, 01/06, C01/06 at the end of description
+    return description.replace(/[\s\.]*(C\.?\d+\/\d+|\d+\/\d+)$/i, '').trim();
+  };
+
+  // Group installments by base description + total installments only
+  // We don't use amountPerInstallment because rounding differences can cause the same purchase to split
+  // This ensures that the same purchase split across different months is grouped together
   const groupedInstallments = installments.reduce((groups, installment) => {
-    const key = installment.description;
+    const baseDescription = getBaseDescription(installment.description);
+    const key = `${baseDescription}|${installment.totalInstallments}`;
     if (!groups[key]) {
       groups[key] = [];
     }
@@ -38,8 +47,12 @@ export default function Installments() {
     return groups;
   }, {} as Record<string, PendingInstallment[]>);
 
-  // Sort groups alphabetically by description
-  const sortedGroupKeys = Object.keys(groupedInstallments).sort((a, b) => a.localeCompare(b));
+  // Sort groups alphabetically by description (first part of key)
+  const sortedGroupKeys = Object.keys(groupedInstallments).sort((a, b) => {
+    const descA = a.split('|')[0];
+    const descB = b.split('|')[0];
+    return descA.localeCompare(descB);
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -102,8 +115,9 @@ export default function Installments() {
             <p className="text-3xl font-bold text-blue-600 mt-2">{formatCurrency(totalPending)}</p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-gray-600">Active Installments</p>
-            <p className="text-2xl font-bold text-gray-900">{installments.length}</p>
+            <p className="text-sm text-gray-600">Unique Installment Groups</p>
+            <p className="text-2xl font-bold text-gray-900">{Object.keys(groupedInstallments).length}</p>
+            <p className="text-xs text-gray-500 mt-1">{installments.length} total transactions</p>
           </div>
         </div>
       </div>
@@ -198,19 +212,37 @@ export default function Installments() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {sortedGroupKeys.map((description, groupIndex) => {
-                  const groupInstallments = groupedInstallments[description];
+                {sortedGroupKeys.map((groupKey, groupIndex) => {
+                  const groupInstallments = groupedInstallments[groupKey];
+                  const [description, totalInstallments] = groupKey.split('|');
+
+                  // Calculate aggregated data for the group
+                  const totalGroupPending = groupInstallments.reduce((sum, inst) => sum + inst.totalPending, 0);
+                  const totalTransactions = groupInstallments.length;
+                  // Use the average amount per installment from the group (to handle rounding differences)
+                  const avgAmountPerInstallment = groupInstallments.reduce((sum, inst) => sum + inst.amountPerInstallment, 0) / groupInstallments.length;
+
                   return (
-                    <Fragment key={`group-${description}`}>
+                    <Fragment key={`group-${groupKey}`}>
                       {/* Group Header */}
                       <tr className="bg-gray-100">
                         <td colSpan={8} className="px-6 py-3">
                           <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-gray-900">
-                              {description}
+                            <div className="flex items-center gap-4">
+                              <div className="text-sm font-semibold text-gray-900">
+                                {description}
+                              </div>
+                              <div className="text-xs text-gray-600">
+                                {formatCurrency(avgAmountPerInstallment)} × {totalInstallments} installments
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-600">
-                              {groupInstallments.length} {groupInstallments.length === 1 ? 'installment' : 'installments'}
+                            <div className="flex items-center gap-6">
+                              <div className="text-sm text-gray-600">
+                                {totalTransactions} {totalTransactions === 1 ? 'transaction' : 'transactions'}
+                              </div>
+                              <div className="text-sm font-semibold text-red-600">
+                                Total pending: {formatCurrency(totalGroupPending)}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -221,11 +253,16 @@ export default function Installments() {
                           installment.currentInstallment,
                           installment.totalInstallments
                         );
+                        const statementDate = new Date(installment.date);
+                        const monthYear = statementDate.toLocaleDateString('es-AR', {
+                          month: 'short',
+                          year: 'numeric'
+                        });
                         return (
                           <tr key={installment.transactionId} className={getRowColorClass(percentage)}>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-500 pl-4">
-                                Total: {formatCurrency(installment.totalAmount)}
+                                Statement: {monthYear}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
