@@ -2,8 +2,9 @@
 
 ## Progress Overview
 - ✅ Phase 1.1: Environment Configuration (Completed)
-- ⏳ Phase 1.2-10: In Progress
-- 📊 Overall Progress: ~5% (1/20 major tasks)
+- ✅ Phase 1.2: Backend Configuration (Completed)
+- ⏳ Phase 1.3-10: In Progress
+- 📊 Overall Progress: ~10% (2/20 major tasks)
 
 **Last Updated:** 2025-11-02
 
@@ -31,10 +32,11 @@
 - [x] Created frontend `.env.example` with `VITE_API_URL`
 - [x] Created comprehensive `ENVIRONMENT_VARIABLES.md` documentation
 
-### 1.2 Update Backend Configuration
-- [ ] Update CORS configuration to accept Vercel frontend domain
-- [ ] Ensure all hardcoded localhost URLs are replaced with environment variables
-- [ ] Add Vercel-specific configuration in `vercel.json` for backend
+### 1.2 Update Backend Configuration ✅ COMPLETED
+- [x] Update CORS configuration to accept Vercel frontend domain (supports multiple comma-separated origins)
+- [x] Ensure all hardcoded localhost URLs are replaced with environment variables (all URLs use env vars)
+- [x] Add Vercel-specific configuration in `vercel.json` for backend
+- [x] Created frontend `vercel.json` for SPA routing and caching
 
 ### 1.3 Database Migration Strategy
 - [ ] Decide on database provider (Vercel Postgres recommended)

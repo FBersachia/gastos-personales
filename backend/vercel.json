@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "name": "finance-manager-backend",
+  "builds": [
+    {
+      "src": "src/server.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["src/**", "prisma/**", "package.json", "tsconfig.json"]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/health",
+      "dest": "src/server.ts",
+      "methods": ["GET"]
+    },
+    {
+      "src": "/api/v1/(.*)",
+      "dest": "src/server.ts",
+      "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "src/server.ts": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "regions": ["iad1"]
+}
