@@ -60,7 +60,9 @@ function Header() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
-            <h1 className="text-xl font-bold text-gray-900">Personal Finance Manager</h1>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent animate-gradient bg-[length:200%_auto]">
+              Personal Finance Manager
+            </h1>
 
             <nav className="flex gap-4 items-center">
               {navLinks.map((link) => (

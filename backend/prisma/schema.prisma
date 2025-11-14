@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["finance_app"]
 }
 
 // ============================================
@@ -30,6 +31,7 @@ model User {
   exchangeRates   ExchangeRate[]
 
   @@map("users")
+  @@schema("finance_app")
 }
 
 model PaymentMethod {
@@ -46,6 +48,7 @@ model PaymentMethod {
   @@unique([userId, name])
   @@index([userId])
   @@map("payment_methods")
+  @@schema("finance_app")
 }
 
 model MacroCategory {
@@ -62,6 +65,7 @@ model MacroCategory {
   @@unique([userId, name])
   @@index([userId])
   @@map("macro_categories")
+  @@schema("finance_app")
 }
 
 model Category {
@@ -81,6 +85,7 @@ model Category {
   @@index([userId])
   @@index([macroId])
   @@map("categories")
+  @@schema("finance_app")
 }
 
 model RecurringSeries {
@@ -98,6 +103,7 @@ model RecurringSeries {
   @@unique([userId, name])
   @@index([userId])
   @@map("recurring_series")
+  @@schema("finance_app")
 }
 
 model Transaction {
@@ -133,6 +139,7 @@ model Transaction {
   @@index([source])
   @@index([currency])
   @@map("transactions")
+  @@schema("finance_app")
 }
 
 model ExchangeRate {
@@ -152,4 +159,5 @@ model ExchangeRate {
   @@index([userId])
   @@index([year, month])
   @@map("exchange_rates")
+  @@schema("finance_app")
 }

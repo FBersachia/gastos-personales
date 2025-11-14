@@ -1,0 +1,29 @@
+# Dependencies (Vercel installs these)
+node_modules
+
+# Tests
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+coverage
+
+# Development files
+.env.local
+.env.*.local
+*.log
+
+# Documentation
+README.md
+docs
+
+# Git
+.git
+.gitignore
+
+# Editor
+.vscode
+.idea
+
+# Builds (Vercel will build)
+dist

@@ -3,17 +3,41 @@
 ## Progress Overview
 - ✅ Phase 1.1: Environment Configuration (Completed)
 - ✅ Phase 1.2: Backend Configuration (Completed)
-- ⏳ Phase 1.3-10: In Progress
-- 📊 Overall Progress: ~10% (2/20 major tasks)
+- ✅ Phase 1.3: Database Migration Strategy (Completed)
+- ⏳ Phase 1.4-10: In Progress
+- 📊 Overall Progress: ~15% (3/20 major tasks)
 
-**Last Updated:** 2025-11-02
+**Last Updated:** 2025-11-14
+
+---
+
+## Project URLs
+
+### Production URLs (Planned)
+- **Frontend:** `https://finance.fbersachia.com.ar`
+- **Backend:** TBD (will be Vercel URL or custom domain like `api.fbersachia.com.ar`)
+- **Database:** Supabase (aws-1-sa-east-1.pooler.supabase.com)
+
+### Development URLs
+- **Frontend:** `http://localhost:5173`
+- **Backend:** `http://localhost:3000`
+- **Database:** Supabase (production database)
+
+### Domain DNS Configuration
+- **Frontend Subdomain:** `finance.fbersachia.com.ar`
+  - Type: CNAME
+  - Value: cname.vercel-dns.com
+- **Backend Subdomain (Optional):** `api.fbersachia.com.ar`
+  - Type: CNAME
+  - Value: cname.vercel-dns.com
 
 ---
 
 ## Prerequisites
 - [ ] Vercel account created
 - [x] GitHub repository set up with latest code (https://github.com/FBersachia/gastos-personales.git)
-- [ ] PostgreSQL database provider chosen (Vercel Postgres, Supabase, or Railway)
+- [x] PostgreSQL database provider chosen (Supabase)
+- [x] Environment variables documented in `import.env` file (ready to copy-paste to Vercel)
 
 ---
 
@@ -36,13 +60,34 @@
 - [x] Update CORS configuration to accept Vercel frontend domain (supports multiple comma-separated origins)
 - [x] Ensure all hardcoded localhost URLs are replaced with environment variables (all URLs use env vars)
 - [x] Add Vercel-specific configuration in `vercel.json` for backend
+- [x] Created `api/index.ts` serverless function entry point for Vercel
+- [x] Fixed `vercel.json` to remove conflicting `builds` property (modern `functions` approach)
+- [x] Updated `tsconfig.json` to include api folder
+- [x] Created `.vercelignore` for optimized deployments
 - [x] Created frontend `vercel.json` for SPA routing and caching
 
-### 1.3 Database Migration Strategy
-- [ ] Decide on database provider (Vercel Postgres recommended)
-- [ ] Set up production database
-- [ ] Test Prisma migrations on production database
-- [ ] Create migration script for initial deployment
+### 1.3 Database Migration Strategy ✅ COMPLETED
+- [x] Decided on database provider (Supabase)
+- [x] Set up production database with connection string
+- [x] Configured Prisma schema to use separate `finance_app` PostgreSQL schema
+- [x] Tested Prisma schema on production database using `npx prisma db push`
+- [x] Verified all tables created successfully:
+  - users
+  - payment_methods
+  - macro_categories
+  - categories
+  - recurring_series
+  - transactions
+  - exchange_rates
+- [x] Generated Prisma Client for production schema
+- [x] Validated schema configuration
+
+**Database Details:**
+- Provider: Supabase
+- Host: aws-1-sa-east-1.pooler.supabase.com
+- Database: postgres
+- Schema: finance_app (isolated from other projects in public schema)
+- Connection: SSL enabled with pgBouncer pooling support
 
 ### 1.4 API Routes Verification
 - [ ] Test all API endpoints locally
@@ -54,9 +99,10 @@
 ## Phase 2: Prepare Frontend for Deployment
 
 ### 2.1 Environment Configuration
-- [ ] Create `.env.production` file
-- [ ] Set `VITE_API_URL` to backend Vercel URL
-- [ ] Update all API calls to use environment variable
+- [ ] Create `.env.production` file or update `.env`
+- [ ] Set `VITE_API_URL` to backend URL (TBD - will be set after backend deployment to Vercel)
+  - Example: `https://your-backend.vercel.app/api/v1` or custom domain
+- [ ] Update all API calls to use environment variable (already configured)
 
 ### 2.2 Build Optimization
 - [ ] Run production build locally: `npm run build`
@@ -86,13 +132,23 @@
 - [ ] Set Install Command: `npm install`
 
 ### 3.3 Set Environment Variables
+- [ ] Open `import.env` file in project root (contains all values ready to copy)
 - [ ] Add all environment variables in Vercel dashboard:
-  - `DATABASE_URL` → Production database connection string
-  - `JWT_SECRET` → Generate secure secret (32+ chars)
+  - `DATABASE_URL` → Use `POSTGRES_PRISMA_URL` from Supabase (with pgBouncer for serverless connection pooling)
+    - Value: `postgres://postgres.tgxcgwzdtjnwmcedzhgv:bwzohKnh6ZLYpxvP@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true`
+  - `JWT_SECRET` → Use Supabase JWT secret or generate new secure secret (32+ chars)
+    - Value: `rTtiaXdpyE/bb+CXjGddhLUJg4Ukfa5DfZQXdoBn4BC+sFiIoVLIot07y0j0TE8egMUXcxY+BinKE+bhHvRWiQ==`
   - `JWT_EXPIRES_IN` → `7d`
   - `NODE_ENV` → `production`
-  - `CORS_ORIGIN` → Your frontend Vercel URL
+  - `CORS_ORIGIN` → `https://finance.fbersachia.com.ar,http://localhost:5173` (supports both production and local dev)
   - `LOG_LEVEL` → `info`
+  - `SUPABASE_URL` → `https://tgxcgwzdtjnwmcedzhgv.supabase.co`
+  - `SUPABASE_ANON_KEY` → `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRneGNnd3pkdGpud21jZWR6aGd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA4MzA1MzksImV4cCI6MjA3NjQwNjUzOX0.RvEfoqRx45dcuQBYTDBKQfB8wclfODlSDUgsD7QSsUk`
+
+**Important Notes:**
+- The `finance_app` schema is configured in `prisma/schema.prisma` - Prisma will automatically use it
+- Use `POSTGRES_PRISMA_URL` (port 6543 with pgBouncer) for serverless deployments on Vercel
+- For local development or migrations, use `POSTGRES_URL_NON_POOLING` (port 5432 without pgBouncer)
 
 ### 3.4 Deploy Backend
 - [ ] Click "Deploy"
@@ -101,10 +157,12 @@
 - [ ] Test health check endpoint: `https://your-backend.vercel.app/health`
 
 ### 3.5 Run Database Migrations
-- [ ] Connect to production database
-- [ ] Run: `npx prisma migrate deploy` (or use Vercel CLI)
-- [ ] Verify tables are created
+- [x] Connected to production database (Supabase)
+- [x] Database schema already created in Phase 1.3 using `npx prisma db push`
+- [x] Verified all tables are created in `finance_app` schema
 - [ ] (Optional) Seed initial data if needed
+
+**Note:** Migrations were already applied in Phase 1.3. No additional migration steps needed unless schema changes are made.
 
 ---
 
@@ -122,13 +180,19 @@
 - [ ] Install Command: `npm install` (should auto-detect)
 
 ### 4.3 Set Environment Variables
+- [ ] Open `import.env` file in project root (contains all values)
 - [ ] Add environment variable:
-  - `VITE_API_URL` → Backend Vercel URL (from Phase 3.4)
+  - `VITE_API_URL` → Backend URL (from Phase 3.4)
+    - Will be the backend Vercel URL or custom domain if configured
+    - Format: `https://your-backend.vercel.app/api/v1`
+
+**Frontend Domain:** `finance.fbersachia.com.ar`
 
 ### 4.4 Deploy Frontend
 - [ ] Click "Deploy"
 - [ ] Wait for deployment to complete
 - [ ] Note the deployment URL (e.g., `your-app.vercel.app`)
+- [ ] Configure custom domain: `finance.fbersachia.com.ar` in Vercel dashboard
 
 ---
 
@@ -176,19 +240,28 @@
 
 ---
 
-## Phase 7: Domain & SSL (Optional)
+## Phase 7: Domain & SSL
 
-### 7.1 Custom Domain Setup
-- [ ] Purchase domain (if needed)
-- [ ] Add custom domain in Vercel
-- [ ] Update DNS records
-- [ ] Wait for DNS propagation
-- [ ] Verify SSL certificate is active
+### 7.1 Custom Domain Setup - Frontend
+- [x] Domain already available: fbersachia.com.ar
+- [ ] Add custom subdomain in Vercel: `finance.fbersachia.com.ar`
+- [ ] Update DNS records:
+  - Type: CNAME
+  - Name: finance
+  - Value: cname.vercel-dns.com
+- [ ] Wait for DNS propagation (can take up to 48 hours)
+- [ ] Verify SSL certificate is active (Vercel auto-provisions)
 
-### 7.2 Update URLs
-- [ ] Update backend `CORS_ORIGIN` to custom domain
-- [ ] Update frontend `VITE_API_URL` if backend has custom domain
-- [ ] Redeploy both projects
+### 7.2 Custom Domain Setup - Backend (Optional)
+- [ ] Decide on backend custom domain (e.g., `api.fbersachia.com.ar`)
+- [ ] Add custom domain in Vercel backend project
+- [ ] Update DNS records for backend subdomain
+- [ ] Wait for SSL certificate activation
+
+### 7.3 Update URLs After Custom Domains
+- [x] Backend `CORS_ORIGIN` already configured with `https://finance.fbersachia.com.ar`
+- [ ] Update frontend `VITE_API_URL` with final backend URL (Vercel URL or custom domain)
+- [ ] Redeploy both projects if environment variables changed
 
 ---
 
@@ -252,10 +325,12 @@
 ## Common Issues & Solutions
 
 ### Backend Issues
+- **"The `functions` property cannot be used in conjunction with the `builds` property"**: Remove the `builds` property from `vercel.json`. Modern Vercel uses only `functions` and `rewrites`. ✅ Fixed
 - **"Module not found" errors**: Ensure all dependencies are in `package.json`, not `devDependencies`
 - **Database connection fails**: Check `DATABASE_URL` format and SSL requirements
 - **CORS errors**: Verify `CORS_ORIGIN` matches frontend URL exactly (no trailing slash)
 - **API routes not found**: Check `vercel.json` configuration for rewrites
+- **Express app not working on Vercel**: Ensure you have an `api/` folder with an entry point that exports the Express app
 
 ### Frontend Issues
 - **API calls fail**: Verify `VITE_API_URL` is set correctly and includes `/api/v1`
