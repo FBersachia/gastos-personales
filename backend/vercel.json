@@ -1,18 +1,10 @@
 {
   "version": 2,
-  "name": "finance-manager-backend",
-  "buildCommand": "npm run prisma:generate",
-  "installCommand": "npm install",
+  "buildCommand": "npx prisma generate",
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/api"
     }
-  ],
-  "functions": {
-    "api/index.ts": {
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  }
+  ]
 }
