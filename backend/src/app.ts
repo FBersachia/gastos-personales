@@ -63,6 +63,11 @@ if (env.NODE_ENV === 'development') {
   });
 }
 
+// Favicon handler (return 204 No Content)
+app.get('/favicon.ico', (_req, res) => {
+  res.status(204).end();
+});
+
 // Health check endpoint
 app.get('/health', async (_req, res) => {
   try {
