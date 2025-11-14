@@ -31,7 +31,7 @@ export function errorHandler(
   // Handle Zod validation errors
   if (error instanceof ZodError) {
     return res.status(400).json(
-      errorResponse('Validation failed', 'VALIDATION_ERROR', error.errors)
+      errorResponse('Validation failed', 'VALIDATION_ERROR', error.issues)
     );
   }
 

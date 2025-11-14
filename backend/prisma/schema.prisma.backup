@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            BigInt    @id @default(autoincrement())
+  username      String    @unique @db.VarChar(50)
+  password_hash String    @db.VarChar(255)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  last_login    DateTime? @db.Timestamp(6)
+  is_active     Boolean?  @default(true)
+
+  @@index([username], map: "idx_users_username")
+  @@map("users")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ex_followers {
+  id            Int       @id @default(autoincrement())
+  username      String    @unique @db.VarChar(255)
+  unfollowed_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([username], map: "idx_ex_followers_username")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model follower_counts {
+  id          Int      @id @default(autoincrement())
+  count       Int
+  recorded_at DateTime @default(now()) @db.Timestamp(6)
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([recorded_at], map: "idx_follower_counts_recorded_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model non_followers {
+  id         Int       @id @default(autoincrement())
+  username   String    @unique @db.VarChar(255)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([username], map: "idx_non_followers_username")
+}
+
+model whitelist {
+  id         Int       @id @default(autoincrement())
+  username   String    @unique @db.VarChar(255)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([username], map: "idx_whitelist_username")
+}

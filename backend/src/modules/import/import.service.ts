@@ -1,7 +1,6 @@
 import { CsvParserService, ParsedCsvRow, CsvFilters } from './csv-parser.service';
 import { PdfParserService } from './pdf-parser.service';
 import { prisma } from '../../config/database';
-import { TransactionType } from '@prisma/client';
 
 export interface ImportPreviewRequest {
   filters?: CsvFilters;
@@ -10,7 +9,7 @@ export interface ImportPreviewRequest {
 export interface ImportConfirmRequest {
   transactions: Array<{
     date: string;
-    type: TransactionType;
+    type: 'INCOME' | 'EXPENSE';
     description: string;
     amount: number;
     categoryId: string;
@@ -32,6 +31,7 @@ export interface PdfImportConfirmRequest {
     date: string;
     description: string;
     amount: number;
+    currency?: string;
     categoryId?: string;
     installments?: string;
   }>;
@@ -243,10 +243,10 @@ export class ImportService {
 
         validTransactions.push({
           date: new Date(txn.date),
-          type: 'EXPENSE' as TransactionType,
+          type: 'EXPENSE',
           description: txn.description,
           amount: txn.amount,
-          currency: txn.currency,
+          currency: txn.currency || 'ARS',
           categoryId: txn.categoryId,
           paymentId: data.paymentMethodId,
           installments: txn.installments || null,

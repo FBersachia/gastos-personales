@@ -15,7 +15,7 @@ export const createTransactionSchema = z.object({
     message: 'Date cannot be in the future',
   }),
   type: z.enum(['INCOME', 'EXPENSE'], {
-    errorMap: () => ({ message: 'Type must be INCOME or EXPENSE' }),
+    message: 'Type must be INCOME or EXPENSE',
   }),
   description: z
     .string()
@@ -27,7 +27,7 @@ export const createTransactionSchema = z.object({
     .positive('Amount must be positive')
     .max(999999999.99, 'Amount is too large'),
   currency: z.enum(['ARS', 'USD'], {
-    errorMap: () => ({ message: 'Currency must be ARS or USD' }),
+    message: 'Currency must be ARS or USD',
   }).default('ARS'),
   categoryId: z.string().uuid('Invalid category ID'),
   paymentMethodId: z.string().uuid('Invalid payment method ID'),

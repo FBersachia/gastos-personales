@@ -79,7 +79,7 @@ export class CsvParserService {
             reject(new Error(`Invalid CSV format: ${error.message}`));
           }
         },
-        error: (error) => {
+        error: (error: any) => {
           reject(new Error(`CSV parsing error: ${error.message}`));
         }
       });

@@ -64,7 +64,7 @@ if (env.NODE_ENV === 'development') {
 }
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
     // Check database connection
     const { prisma } = await import('./config/database');
@@ -99,7 +99,7 @@ app.use('/api/v1/dashboard', dashboardRouter);
 app.use('/api/v1/exchange-rates', exchangeRateRouter);
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({
     success: false,
     error: {

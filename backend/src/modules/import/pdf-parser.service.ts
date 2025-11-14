@@ -594,8 +594,9 @@ export class PdfParserService {
                 installments = fullMatch;
                 cleanDescription = cleanDescription.substring(0, cleanDescription.length - fullMatch.length).trim();
                 // The last 2 digits of installment are merged with comprobante
-                const instLastDigits = fullMatch.match(/(\d{2})$/)[1];
-                if (candidateDigits.startsWith(instLastDigits)) {
+                const instLastDigitsMatch = fullMatch.match(/(\d{2})$/);
+                const instLastDigits = instLastDigitsMatch ? instLastDigitsMatch[1] : '';
+                if (instLastDigits && candidateDigits.startsWith(instLastDigits)) {
                   comprobante = candidateDigits.substring(2, 8);
                 } else {
                   comprobante = candidateDigits.substring(0, 6);
